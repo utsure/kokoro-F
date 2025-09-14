@@ -4,12 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const video = document.getElementById('video');
   const previewCanvas = document.getElementById('canvas');
   const previewCtx = previewCanvas.getContext('2d');
-  const captureCanvas = document.createElement('canvas'); // 撮影処理専用
+  const captureCanvas = document.createElement('canvas');
 
   let selectedFValue = 22.0, lastMeasuredBpm = 100;
   let currentStream = null, rafId = null, currentFacing = 'environment';
-  const MIN_F = 2.0, MAX_F = 22.0;
-  const BPM_MIN = 60, BPM_MAX = 100, DEFAULT_BPM = 80;
+  const MIN_F = 2.0, MAX_F = 22.0, BPM_MIN = 60, BPM_MAX = 100, DEFAULT_BPM = 80;
 
   // ====== 画面管理 ======
   function showScreen(key) { Object.values(screens).forEach(s => s.classList.remove('active')); screens[key]?.classList.add('active'); }
@@ -23,14 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
       video.srcObject = stream;
       await video.play();
       currentStream = stream; currentFacing = facingMode;
-      previewCanvas.style.display = 'block';
       startPreviewLoop();
     } catch (err) { alert("カメラの起動に失敗しました。"); }
   }
 
-  // ====== ★ 新しい描画ループ (F値とBPMの効果を統合) ======
+  // ====== ★ 新描画エンジン ======
   function startPreviewLoop() {
-    const buffer = document.createElement('canvas'); // 高速描画用の中間キャンバス
+    const buffer = document.createElement('canvas');
     const bufferCtx = buffer.getContext('2d');
 
     const render = () => {
@@ -40,20 +38,22 @@ document.addEventListener('DOMContentLoaded', () => {
         previewCanvas.height = buffer.height = video.videoHeight;
       }
 
-      // 1. F値の効果（ボケ・明るさ）を中間キャンバスに描画
+      // 1. F値の効果を適用した映像を、非表示のバッファに描画
       bufferCtx.filter = getFilterString(selectedFValue);
       bufferCtx.drawImage(video, 0, 0, buffer.width, buffer.height);
-      bufferCtx.filter = 'none';
 
-      // 2. BPMの効果（モーションブラー）を計算
+      // 2. BPMから残像の強さを計算
       const t = Math.max(0, Math.min(1, (lastMeasuredBpm - BPM_MIN) / (BPM_MAX - BPM_MIN)));
-      const trailOpacity = 0.6 * (1 - t); // BPM:60で0.6、BPM:100で0.0
+      const fadeAmount = 0.3 + t * 0.6; // BPM:60で0.3、BPM:100で0.9
       
-      // 3. 表示用キャンバスに前のフレームの残像を描き、その上に新しいフレームを重ねる
-      previewCtx.globalAlpha = 1 - trailOpacity;
-      previewCtx.drawImage(previewCanvas, 0, 0); // 前のフレームを少し薄く描画
-      previewCtx.globalAlpha = 1.0;
-      if (currentFacing === 'user') { // 反転処理
+      // 3. 表示用キャンバスを一度暗くして残像を作る
+      previewCtx.fillStyle = `rgba(0, 0, 0, ${1 - fadeAmount})`;
+      previewCtx.globalCompositeOperation = 'darken';
+      previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+      previewCtx.globalCompositeOperation = 'source-over';
+      
+      // 4. バッファの映像を上に重ねる
+      if (currentFacing === 'user') {
         previewCtx.save();
         previewCtx.translate(previewCanvas.width, 0);
         previewCtx.scale(-1, 1);
@@ -72,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // ====== フィルター効果 ======
   function getFilterString(f) {
       const t = (f - MIN_F) / (MAX_F - MIN_F);
-      const brightness = 1.8 - (t * 1.2);
-      const blur = (1 - t) * 15;
+      const brightness = 1.0 + (1 - t) * 0.8; // F2.0で1.8, F22.0で1.0
+      const blur = (1 - t) * 15; // F2.0で15px
       return `brightness(${brightness.toFixed(2)}) blur(${blur.toFixed(2)}px)`;
   }
 
@@ -106,11 +106,11 @@ document.addEventListener('DOMContentLoaded', () => {
       await startCamera('environment');
   }
 
-  // ====== ★ アルバム機能 (localStorage対応) ======
+  // ====== ★ アルバム機能 (修正版) ======
   const Album = {
-    KEY: 'cocoro_camera_album_v2', photos: [],
+    KEY: 'cocoro_camera_album_v3', photos: [],
     load() { try { const s = localStorage.getItem(this.KEY); this.photos = s ? JSON.parse(s) : []; } catch (e) { this.photos = []; } this.render(); },
-    save() { localStorage.setItem(this.KEY, JSON.stringify(this.photos)); },
+    save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.photos)); } catch(e) { console.error("アルバムの保存に失敗", e); alert("アルバムの保存に失敗しました。");}},
     add(photoData) { this.photos.unshift(photoData); this.save(); this.render(); },
     render() {
       const grid = document.getElementById('gallery-grid'); if (!grid) return;
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // ====== ★ 新しい撮影機能 (プレビュー再現 & アルバム保存) ======
+  // ====== ★ 新しい撮影機能 (WYSIWYG & アルバム保存) ======
   async function takePhoto() {
     const shutterBtn = document.getElementById('camera-shutter-btn');
     if (shutterBtn.disabled || !video.videoWidth) return;
@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.drawImage(previewCanvas, 0, 0);
 
       const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.9);
-      Album.add({ src: dataUrl, f: selectedFValue, bpm: lastMeasuredBpm, ts: Date.now() });
+      Album.add({ src: dataUrl, f: selectedFValue, bpm: lastMeasuredBpm });
 
     } catch (err) { console.error('撮影エラー:', err);
     } finally { shutterBtn.disabled = false; }
