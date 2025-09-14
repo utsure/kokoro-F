@@ -17,13 +17,14 @@ body { display: flex; justify-content: center; align-items: center; }
     width: 100%; 
     height: 100%; 
     max-width: 450px; /* スマートフォン画面の一般的な幅に制限 */
-    aspect-ratio: 9 / 19.5; /* スマートフォンのアスペクト比 */
+    aspect-ratio: 9 / 19.5; /* スマートフォンのアスペクト比 - 多くのスマホに合わせる */
     background: #fff; 
     position: relative; 
     overflow: hidden; 
     margin: auto; 
     box-shadow: 0 10px 40px rgba(0,0,0,0.5); 
-    touch-action: pan-y; /* コンテナ内での縦スクロールは許可（BPMの動画など） */
+    /* touch-action: pan-y; */ /* コンテナ内での縦スクロールは許可しない（F値と競合するため） */
+    /* 全体でzoomを禁止しているので、こちらでは個別のpanは設定しない */
 }
 
 /* 各スクリーン */
@@ -87,8 +88,10 @@ button.secondary { background: #ececec; color: #222; }
 
 .aperture-control {
     position: relative;
-    width: 200px; /* 初期サイズ */
-    height: 200px; /* 初期サイズ */
+    width: 50vw; /* 画面幅の50%を初期サイズに */
+    height: 50vw; /* 画面幅の50%を初期サイズに */
+    max-width: 200px; /* PCでの最大サイズ */
+    max-height: 200px;
     transition: all .05s linear; /* より滑らかなアニメーション */
     touch-action: none; /* ピンチジェスチャーが他のスクロールと競合しないように */
     user-select: none;
@@ -167,8 +170,6 @@ button.secondary { background: #ececec; color: #222; }
     gap: 10px; /* ボタン間のスペース */
 }
 #bpm-skip-btn { 
-    /* position: absolute; */ /* 他のボタンとのレイアウト調整のためabsoluteを解除 */
-    /* right: 20px; */
     font-size: 14px; 
     padding: 8px 14px; 
 }
@@ -178,14 +179,13 @@ button.secondary { background: #ececec; color: #222; }
     background: #000;
     padding: 0;
     overflow: hidden;
-    display: block; /* Flexboxを解除し、元のスタイルに戻す */
-    touch-action: pan-y; /* カメラ画面全体では縦スクロールを許可するが、ビデオ要素は抑制 */
+    display: flex; /* Flexboxに変更してUIを柔軟に配置 */
+    flex-direction: column;
+    justify-content: space-between; /* 上下均等に配置 */
+    align-items: center;
+    touch-action: none; /* カメラ画面全体でピンチズームを禁止 */
 }
 #screen-camera video {
-    touch-action: none; /* ビデオ要素上でのピンチズームを禁止 */
-}
-
-#camera-video, #camera-canvas {
     position: absolute;
     top: 0;
     left: 0;
@@ -195,24 +195,196 @@ button.secondary { background: #ececec; color: #222; }
     z-index: 1;
     filter: none;
     transition: transform 0.3s ease-out, filter 0.2s ease-out;
+    touch-action: none; /* ビデオ要素上でのピンチズームを禁止 */
+}
+#camera-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 2; /* videoより手前に表示 */
+    pointer-events: none; /* canvas自体は操作を受け付けない */
 }
 #camera-video { transform: none; }
 
 
-/* ご提示いただいたスタイルをほぼそのまま利用 */
-#info-box, #album-button, #center-circle, #graph-container, #shutter-button, #start-bpm-button, #switch-camera-button { position: absolute; z-index: 10; user-select: none; }
-#info-box { top: 20px; left: 20px; border: 2px solid white; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; font-size: 16px; width: 90px; }
-#album-button { bottom: 20px; left: 20px; background: rgba(0,0,0,0.3); border: 2px solid white; padding: 10px; border-radius: 5px; font-size: 16px; width: 90px; text-align: center; cursor: pointer; }
-#gallery { display: none; flex-wrap: wrap; gap: 10px; position: absolute; bottom: 100px; left: 20px; max-width: calc(100% - 40px); /* 画面幅に合わせて調整 */
-    max-height: 300px; overflow-y: auto; z-index: 10; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; touch-action: pan-y; /* ギャラリー内はスクロール可能に */
+/* カメラUIボタンの共通スタイル */
+.camera-ui-button {
+    position: relative; /* flexbox内の配置のため */
+    z-index: 10; 
+    user-select: none;
+    color: white;
+    background: rgba(0,0,0,0.4);
+    border: 2px solid white;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: center;
+    display: flex; /* ボタン内のテキスト中央寄せのため */
+    align-items: center;
+    justify-content: center;
+    min-width: 80px; /* 最小幅 */
+    height: 40px; /* 高さ統一 */
+}
+
+/* 各ボタンの配置調整 */
+#info-box { 
+    position: absolute; /* 他のボタンと異なる配置のためabsolute */
+    top: 10px; 
+    left: 10px; 
+    border: 2px solid white; 
+    background: rgba(0,0,0,0.3); 
+    padding: 8px; 
+    border-radius: 5px; 
+    font-size: 14px; 
+    width: 90px;
+    z-index: 10;
+    color: white;
+}
+
+#gallery { 
+    display: none; 
+    flex-wrap: wrap; 
+    gap: 10px; 
+    position: absolute; 
+    bottom: 60px; /* ボタン領域を避ける */
+    left: 10px; 
+    right: 10px;
+    max-height: 40%; /* 画面の高さの40%に制限 */
+    overflow-y: auto; 
+    z-index: 10; 
+    background: rgba(0,0,0,0.8); 
+    padding: 10px; 
+    border-radius: 8px; 
+    touch-action: pan-y; /* ギャラリー内はスクロール可能に */
 }
 .entry { background: #222; border: 1px solid #fff; padding: 5px; border-radius: 8px; width: 80px; color: #fff; font-size: 12px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
 .entry img { width: 100%; border-radius: 4px; margin-bottom: 4px; }
 .entry .meta { text-align: center; line-height: 1.2; white-space: pre-wrap; }
-#center-circle { top: 50%; left: 50%; transform: translate(-50%, -50%); border: 3px solid white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 48px; font-weight: bold; color: white; text-shadow: 0 0 5px black; width: 150px; height: 150px; transition: width 0.2s, height 0.2s; pointer-events: none; }
-#graph-container { top: 50%; right: 15px; transform: translateY(-50%); width: 120px; height: 250px; background: rgba(0,0,0,0.4); border-radius: 6px; padding: 4px; box-sizing: border-box; }
+
+#center-circle { 
+    position: absolute; /* ビデオの上に重ねるためabsolute */
+    top: 50%; 
+    left: 50%; 
+    transform: translate(-50%, -50%); 
+    border: 3px solid white; 
+    border-radius: 50%; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    font-size: 48px; 
+    font-weight: bold; 
+    color: white; 
+    text-shadow: 0 0 5px black; 
+    width: 40vw; /* 画面幅の40%を初期サイズに */
+    height: 40vw; /* 画面幅の40%を初期サイズに */
+    max-width: 150px; /* PCでの最大サイズ */
+    max-height: 150px;
+    transition: width 0.2s, height 0.2s; 
+    z-index: 5; /* videoより上、ボタンより下 */
+    touch-action: none; /* ピンチ操作はこの要素上で有効にするため、親でnoneに */
+    user-select: none;
+}
+#center-circle.active-pinch { /* ピンチ操作中はZ-indexを上げて他のUIとの干渉を防ぐ */
+    z-index: 11;
+}
+
+
+#graph-container { 
+    position: absolute; /* 固定配置 */
+    top: 50%; 
+    right: 10px; /* 右端に配置 */
+    transform: translateY(-50%); 
+    width: 80px; /* 幅を縮小 */
+    height: 180px; /* 高さを縮小 */
+    background: rgba(0,0,0,0.4); 
+    border-radius: 6px; 
+    padding: 4px; 
+    box-sizing: border-box; 
+    z-index: 10;
+}
 #graph { width: 100%; height: 100%; }
-#shutter-button { bottom: 10px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; background-color: red; border-radius: 50%; border: 4px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); cursor: pointer; transition: background-color 0.3s; }
+
+/* 下部のボタン群をFlexboxで配置 */
+.camera-controls-bottom {
+    position: absolute;
+    bottom: 10px; /* 下からの距離 */
+    width: 100%;
+    display: flex;
+    justify-content: space-around; /* 均等に配置 */
+    align-items: center;
+    padding: 0 10px;
+    z-index: 10;
+}
+
+#shutter-button { 
+    position: static; /* Flexアイテムとして配置 */
+    width: 60px; 
+    height: 60px; 
+    background-color: red; 
+    border-radius: 50%; 
+    border: 4px solid white; 
+    box-shadow: 0 0 10px rgba(0,0,0,0.5); 
+    cursor: pointer; 
+    transition: background-color 0.3s; 
+    margin: 0 10px; /* 他のボタンとの間隔 */
+}
 #shutter-button.disabled { background-color: gray; cursor: not-allowed; pointer-events: none; }
-#start-bpm-button { top: 20px; right: 20px; background: #0f8; color: #000; font-weight: bold; padding: 10px; border-radius: 6px; cursor: pointer; width: 90px; text-align: center; }
-#switch-camera-button { bottom: 20px; right: 20px; background: rgba(0,0,0,0.3); border: 2px solid white; color: white; padding: 10px; border-radius: 5px; font-size: 16px; width: 90px; text-align: center; cursor: pointer; }
+
+/* 個別のボタンをFlexアイテムとして配置するために変更 */
+#album-button, #start-bpm-button, #switch-camera-button {
+    position: static;
+    flex-shrink: 0; /* 縮小させない */
+    font-size: 13px;
+    padding: 6px 10px;
+    min-width: 70px;
+    height: 38px;
+}
+
+/* 画面下部のボタンを囲むラッパーを追加 */
+.camera-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 10px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: rgba(0,0,0,0.5); /* 背景を付けて見やすく */
+    z-index: 10;
+}
+
+/* 元のボタンをフッター内に移動 */
+#album-button {
+    order: 1; /* 左端 */
+    position: static; /* Flexアイテムとして */
+    margin-right: auto; /* シャッターボタンとの間隔を自動調整 */
+}
+#shutter-button {
+    order: 2; /* 中央 */
+    position: static;
+}
+#switch-camera-button {
+    order: 3; /* 右端 */
+    position: static;
+    margin-left: auto; /* シャッターボタンとの間隔を自動調整 */
+}
+#start-bpm-button { /* BPM測定ボタンはinfo-boxの隣に移動 */
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #0f8;
+    color: #000;
+    font-weight: bold;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    z-index: 10;
+    min-width: 80px;
+    height: 40px;
+}
