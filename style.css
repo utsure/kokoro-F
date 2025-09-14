@@ -1,390 +1,231 @@
 /* ベース */
-html, body { 
-    margin: 0; 
-    padding: 0; 
-    height: 100vh; 
-    width: 100vw; 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
-    background: #222; 
-    overflow: hidden; /* 全体のスクロールを禁止 */
-    touch-action: none; /* 全体でピンチズームを禁止 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  font-family: "Hiragino Kaku Gothic ProN", "ヒラギノ角ゴ ProN W3",
+               "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+  background: #f0f0f0;
 }
 * { box-sizing: border-box; }
-body { display: flex; justify-content: center; align-items: center; }
 
-/* アプリケーションコンテナ */
-.app-container { 
-    width: 100%; 
-    height: 100%; 
-    max-width: 450px; /* スマートフォン画面の一般的な幅に制限 */
-    aspect-ratio: 9 / 19.5; /* スマートフォンのアスペクト比 - 多くのスマホに合わせる */
-    background: #fff; 
-    position: relative; 
-    overflow: hidden; 
-    margin: auto; 
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5); 
-    /* touch-action: pan-y; */ /* コンテナ内での縦スクロールは許可しない（F値と競合するため） */
-    /* 全体でzoomを禁止しているので、こちらでは個別のpanは設定しない */
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  touch-action: none;          /* 全面アプリ挙動 */
+  overscroll-behavior: none;
 }
 
-/* 各スクリーン */
-.screen { 
-    position: absolute; 
-    inset: 0; 
-    display: flex; 
-    flex-direction: column; 
-    justify-content: center; 
-    align-items: center; 
-    text-align: center; 
-    padding: 20px; 
-    opacity: 0; 
-    pointer-events: none; 
-    transition: opacity .4s ease; 
-    background: #fff; 
-    color: #333; 
-    overflow-y: auto; /* 必要に応じてスクロール可能に */
-    -webkit-overflow-scrolling: touch; /* iOSでのスムーズなスクロール */
-}
-.screen.active { 
-    opacity: 1; 
-    pointer-events: auto; 
+/* 端末サイズに合わせて自然にスケーリング */
+.app-container {
+  width: 100%;
+  height: 100%;
+  max-width: 420px;
+  aspect-ratio: 375 / 812;     /* iPhone系の比率基準でスケーリング */
+  background: #fff;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
 }
 
-/* 共通UI要素のスタイル */
+.screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-align: center; padding: 20px;
+  opacity: 0; pointer-events: none;
+  transition: opacity .4s ease;
+}
+.screen.active { opacity: 1; pointer-events: auto; }
+
 h1 { font-size: 2.3rem; font-weight: 800; color: #333; margin: 0 0 10px; }
 h2 { font-size: 1.7rem; font-weight: 700; color: #444; margin: 0 0 10px; }
 p  { font-size: 1rem; color: #666; line-height: 1.6; margin: 0 0 8px; }
-button { 
-    padding: 14px 28px; 
-    font-size: 16px; 
-    font-weight: 700; 
-    border-radius: 999px; 
-    cursor: pointer; 
-    background: #111; 
-    color: #fff; 
-    border: none; 
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
-    transition: transform .15s, box-shadow .15s; 
-    user-select: none;
-    touch-action: manipulation; /* ボタンでのタップ遅延をなくす */
+
+button {
+  padding: 14px 28px; font-size: 16px; font-weight: 700;
+  border-radius: 999px; cursor: pointer;
+  background: #111; color: #fff; border: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  transition: transform .15s, box-shadow .15s, opacity .15s;
 }
-button:active { transform: translateY(1px); }
-button:disabled { background: #888; cursor: not-allowed; }
+button:hover { transform: translateY(-1px); box-shadow: 0 6px 15px rgba(0,0,0,0.28); }
+button:active { transform: translateY(0); }
 button.secondary { background: #ececec; color: #222; }
+button:focus-visible { outline: 3px solid #5aa9ff; outline-offset: 2px; }
 
+/* カメラ画面のボタンは改行させない */
+.camera-btn,
+#camera-switch-btn,
+#camera-shutter-btn,
+#camera-info-btn {
+  white-space: nowrap;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
-/* F値入力画面固有 */
-#screen-fvalue-input { justify-content: space-around; }
-.f-value-title-container { margin-bottom: 20px; }
+/* F値入力 */
+#screen-fvalue-input { display: flex; flex-direction: column; }
+.f-value-title-container { width: 100%; padding-top: 8px; }
+.aperture-control-container { display: flex; justify-content: center; align-items: center; flex: 1; width: 100%; }
+.description-text-container { display: flex; flex-direction: column; align-items: center; padding-bottom: 12px; gap: 8px; }
 .f-value-title { font-size: 1.1rem; font-weight: 600; color: #555; }
 
-.aperture-control-container {
-    flex: 1; /* 縦方向に中央寄せ */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-}
-
 .aperture-control {
-    position: relative;
-    width: 50vw; /* 画面幅の50%を初期サイズに */
-    height: 50vw; /* 画面幅の50%を初期サイズに */
-    max-width: 200px; /* PCでの最大サイズ */
-    max-height: 200px;
-    transition: all .05s linear; /* より滑らかなアニメーション */
-    touch-action: none; /* ピンチジェスチャーが他のスクロールと競合しないように */
-    user-select: none;
-    flex-shrink: 0; /* 親の縮小に影響されないように */
+  position: relative;
+  width: 200px;
+  height: 200px;
+  transition: all .18s ease;
 }
-
 .aperture-ring {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: #2A9858;
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.25), 0 5px 15px rgba(0,0,0,0.25);
-    transition: transform 0.05s linear; /* リング自身の伸縮アニメーション */
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid #2A9858;
+  background: #2A9858;
+  box-shadow:
+    inset 0 0 10px rgba(0,0,0,0.25),
+    0 5px 15px rgba(0,0,0,0.25);
 }
-
 .aperture-value {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    font-size: 2.3rem;
-    font-weight: 800;
-    color: #fff;
-    pointer-events: none; /* テキストは操作を受け付けない */
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 2.3rem; font-weight: 800; color: #fff;
 }
 
-.description-text-container {
-    margin-top: 20px; /* UIの下部に配置 */
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+/* ── BPM計測 ───────────────────────── */
+#screen-bpm { background: #fff; color: #222; }
+#screen-bpm h2 { color: #000; }
+.bpm-instruction { color: #444; }
+
+/* ラッパーに枠（外側のみ） */
+.bpm-video-wrapper {
+  width: 80%;
+  max-width: 320px;
+  aspect-ratio: 4/3;
+  border: 4px solid #D30000;   /* 赤枠 */
+  border-radius: 12px;         /* 角丸 */
+  margin: 12px 0;
+  background: #fff;            /* 背景は白 */
+  overflow: hidden;            /* videoのはみ出し防止 */
 }
-.description-text {
-    font-size: 0.9rem;
-    color: #777;
-    margin-bottom: 15px;
-    padding: 0 10px; /* 左右の余白を追加 */
-}
-#f-value-decide-btn {
-    width: 80%;
-    max-width: 200px;
+/* videoは枠なし */
+#bpm-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border: none;
+  border-radius: 0;
+  background: none;
+  margin: 0;
 }
 
+/* ステータス */
+#bpm-status { color: #444; margin: 6px 0 12px; }
 
-/* BPM計測画面固有 */
-#screen-bpm {
-    /* justify-content: flex-start; */ /* BPM画面は上部に寄せる */
-}
-.bpm-instruction {
-    margin-bottom: 20px;
-    padding: 0 10px;
-}
-.bpm-video-wrapper { 
-    width: 80%; 
-    max-width: 320px; 
-    aspect-ratio: 4/3; 
-    border: 4px solid #D30000; 
-    border-radius: 12px; 
-    margin: 12px 0; 
-    overflow: hidden; 
-}
-#bpm-video { 
-    width: 100%; 
-    height: 100%; 
-    object-fit: cover; 
-    transform: rotateY(180deg); /* ユーザーの指を鏡像で表示 */
-}
-.bpm-actions { 
-    position: relative; 
-    width: 100%; 
-    margin-top: 20px; 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    gap: 10px; /* ボタン間のスペース */
-}
-#bpm-skip-btn { 
-    font-size: 14px; 
-    padding: 8px 14px; 
+.bpm-actions {
+  position: relative;        /* 子要素を絶対配置できるように */
+  width: 100%;
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;   /* 計測開始ボタンを中央に */
+  align-items: center;
 }
 
-/* カメラ撮影画面固有 */
-#screen-camera {
-    background: #000;
-    padding: 0;
-    overflow: hidden;
-    display: flex; /* Flexboxに変更してUIを柔軟に配置 */
-    flex-direction: column;
-    justify-content: space-between; /* 上下均等に配置 */
-    align-items: center;
-    touch-action: none; /* カメラ画面全体でピンチズームを禁止 */
-}
-#screen-camera video {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: 1;
-    filter: none;
-    transition: transform 0.3s ease-out, filter 0.2s ease-out;
-    touch-action: none; /* ビデオ要素上でのピンチズームを禁止 */
-}
-#camera-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: 2; /* videoより手前に表示 */
-    pointer-events: none; /* canvas自体は操作を受け付けない */
-}
-#camera-video { transform: none; }
-
-
-/* カメラUIボタンの共通スタイル */
-.camera-ui-button {
-    position: relative; /* flexbox内の配置のため */
-    z-index: 10; 
-    user-select: none;
-    color: white;
-    background: rgba(0,0,0,0.4);
-    border: 2px solid white;
-    padding: 8px 12px;
-    border-radius: 5px;
-    font-size: 14px;
-    cursor: pointer;
-    text-align: center;
-    display: flex; /* ボタン内のテキスト中央寄せのため */
-    align-items: center;
-    justify-content: center;
-    min-width: 80px; /* 最小幅 */
-    height: 40px; /* 高さ統一 */
+/* 計測開始ボタン → 常に中央 */
+#bpm-start-btn {
+  margin: 0 auto;
+  z-index: 1;
 }
 
-/* 各ボタンの配置調整 */
-#info-box { 
-    position: absolute; /* 他のボタンと異なる配置のためabsolute */
-    top: 10px; 
-    left: 10px; 
-    border: 2px solid white; 
-    background: rgba(0,0,0,0.3); 
-    padding: 8px; 
-    border-radius: 5px; 
-    font-size: 14px; 
-    width: 90px;
-    z-index: 10;
-    color: white;
+/* スキップボタン → 画面右端に固定 */
+#bpm-skip-btn {
+  position: absolute;
+  right: 0;           /* 画面の右端に */
+  top: 50%;           /* 親の中央高さ */
+  transform: translateY(-50%);
+  font-size: 14px;
+  padding: 8px 14px;
 }
 
-#gallery { 
-    display: none; 
-    flex-wrap: wrap; 
-    gap: 10px; 
-    position: absolute; 
-    bottom: 60px; /* ボタン領域を避ける */
-    left: 10px; 
-    right: 10px;
-    max-height: 40%; /* 画面の高さの40%に制限 */
-    overflow-y: auto; 
-    z-index: 10; 
-    background: rgba(0,0,0,0.8); 
-    padding: 10px; 
-    border-radius: 8px; 
-    touch-action: pan-y; /* ギャラリー内はスクロール可能に */
+/* カメラ画面 */
+#screen-camera { background: #000; }
+#video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; z-index: 1;
 }
-.entry { background: #222; border: 1px solid #fff; padding: 5px; border-radius: 8px; width: 80px; color: #fff; font-size: 12px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-.entry img { width: 100%; border-radius: 4px; margin-bottom: 4px; }
-.entry .meta { text-align: center; line-height: 1.2; white-space: pre-wrap; }
+#canvas { display: none; }
 
-#center-circle { 
-    position: absolute; /* ビデオの上に重ねるためabsolute */
-    top: 50%; 
-    left: 50%; 
-    transform: translate(-50%, -50%); 
-    border: 3px solid white; 
-    border-radius: 50%; 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    font-size: 48px; 
-    font-weight: bold; 
-    color: white; 
-    text-shadow: 0 0 5px black; 
-    width: 40vw; /* 画面幅の40%を初期サイズに */
-    height: 40vw; /* 画面幅の40%を初期サイズに */
-    max-width: 150px; /* PCでの最大サイズ */
-    max-height: 150px;
-    transition: width 0.2s, height 0.2s; 
-    z-index: 5; /* videoより上、ボタンより下 */
-    touch-action: none; /* ピンチ操作はこの要素上で有効にするため、親でnoneに */
-    user-select: none;
+.camera-ui {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  justify-content: space-between; align-items: center;
+  padding: 16px; z-index: 2;
 }
-#center-circle.active-pinch { /* ピンチ操作中はZ-indexを上げて他のUIとの干渉を防ぐ */
-    z-index: 11;
+.camera-ui-top {
+  width: 100%; display: flex; justify-content: space-between; padding: 10px 12px;
+  color: #fff; font-weight: 700; text-shadow: 1px 1px 2px rgba(0,0,0,.5);
+  background: linear-gradient(to bottom, rgba(0,0,0,.45), transparent);
+  border-radius: 10px;
+}
+.camera-ui-bottom { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0 16px 10px; }
+#camera-shutter-btn {
+  padding: 18px 36px; border: 3px solid #fff; background: rgba(255,255,255,.3); color: #fff;
+  font-size: 1.1rem; font-weight: 800; backdrop-filter: blur(5px);
 }
 
-
-#graph-container { 
-    position: absolute; /* 固定配置 */
-    top: 50%; 
-    right: 10px; /* 右端に配置 */
-    transform: translateY(-50%); 
-    width: 80px; /* 幅を縮小 */
-    height: 180px; /* 高さを縮小 */
-    background: rgba(0,0,0,0.4); 
-    border-radius: 6px; 
-    padding: 4px; 
-    box-sizing: border-box; 
-    z-index: 10;
+#camera-gallery {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; max-width: 92%; overflow-x: auto; padding: 5px; z-index: 10;
 }
-#graph { width: 100%; height: 100%; }
+#camera-gallery img { border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,.25); transition: transform .15s; }
+#camera-gallery img:hover { transform: scale(1.05); }
 
-/* 下部のボタン群をFlexboxで配置 */
-.camera-controls-bottom {
-    position: absolute;
-    bottom: 10px; /* 下からの距離 */
-    width: 100%;
-    display: flex;
-    justify-content: space-around; /* 均等に配置 */
-    align-items: center;
-    padding: 0 10px;
-    z-index: 10;
+@media (prefers-color-scheme: dark) {
+  body { background: #0f0f12; }
 }
 
-#shutter-button { 
-    position: static; /* Flexアイテムとして配置 */
-    width: 60px; 
-    height: 60px; 
-    background-color: red; 
-    border-radius: 50%; 
-    border: 4px solid white; 
-    box-shadow: 0 0 10px rgba(0,0,0,0.5); 
-    cursor: pointer; 
-    transition: background-color 0.3s; 
-    margin: 0 10px; /* 他のボタンとの間隔 */
-}
-#shutter-button.disabled { background-color: gray; cursor: not-allowed; pointer-events: none; }
+.hidden { display: none !important; }
 
-/* 個別のボタンをFlexアイテムとして配置するために変更 */
-#album-button, #start-bpm-button, #switch-camera-button {
-    position: static;
-    flex-shrink: 0; /* 縮小させない */
-    font-size: 13px;
-    padding: 6px 10px;
-    min-width: 70px;
-    height: 38px;
+/* === ギャラリーモーダル（既存HTMLに対応する最低限の見た目） === */
+.cc-modal.hidden[aria-hidden="true"] { display: none; }
+.cc-modal:not(.hidden)[aria-hidden="false"] { display: block; }
+.cc-modal { position: fixed; inset: 0; z-index: 5000; }
+.cc-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.6); }
+.cc-modal-panel {
+  position: absolute; inset: 6% 4% auto; bottom: 6%;
+  background: rgba(20,20,20,.95); color: #fff; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.2); overflow: hidden;
+  display: flex; flex-direction: column;
 }
+.cc-modal-header { display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.15); }
+#gallery-grid.cc-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(90px,1fr));
+  gap: 8px; padding: 10px; overflow: auto; max-height: 60vh;
+}
+.cc-thumb { background:#111; border:1px solid rgba(255,255,255,.25); border-radius:8px;
+  padding:4px; cursor:pointer; display:flex; flex-direction:column; gap:4px; }
+.cc-thumb img { width:100%; height:auto; border-radius:4px; display:block; }
+.cc-thumb .meta { font-size:12px; line-height:1.2; white-space:pre-wrap; color:#ddd; }
 
-/* 画面下部のボタンを囲むラッパーを追加 */
-.camera-footer {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    padding: 10px;
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    background: rgba(0,0,0,0.5); /* 背景を付けて見やすく */
-    z-index: 10;
-}
+/* === 見返し（ライトボックス） === */
+#viewer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 9999; }
+#viewer-img-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#viewer-img { max-width: 100%; max-height: 100%; touch-action: none; will-change: transform; }
 
-/* 元のボタンをフッター内に移動 */
-#album-button {
-    order: 1; /* 左端 */
-    position: static; /* Flexアイテムとして */
-    margin-right: auto; /* シャッターボタンとの間隔を自動調整 */
-}
-#shutter-button {
-    order: 2; /* 中央 */
-    position: static;
-}
-#switch-camera-button {
-    order: 3; /* 右端 */
-    position: static;
-    margin-left: auto; /* シャッターボタンとの間隔を自動調整 */
-}
-#start-bpm-button { /* BPM測定ボタンはinfo-boxの隣に移動 */
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #0f8;
-    color: #000;
-    font-weight: bold;
-    padding: 8px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 14px;
-    z-index: 10;
-    min-width: 80px;
-    height: 40px;
-}
+#viewer-ui { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; }
+#viewer-meta { position: absolute; left: 12px; bottom: 12px; background: rgba(0,0,0,.5); border: 1px solid #fff; border-radius: 8px; padding: 8px 10px; font-size: 14px; white-space: pre-wrap; }
+
+.viewer-btn { background: rgba(255,255,255,.12); border: 1px solid #fff; color: #fff; padding: 10px 12px; border-radius: 10px; cursor: pointer; user-select: none; }
+#viewer-prev, #viewer-next { position: absolute; top: 50%; transform: translateY(-50%); }
+#viewer-prev { left: 10px; }
+#viewer-next { right: 10px; }
+
