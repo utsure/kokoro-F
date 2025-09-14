@@ -1,144 +1,300 @@
-document.addEventListener('DOMContentLoaded', () => {
-  // ====== グローバル変数と定数 ======
-  const screens = { initial: document.getElementById('screen-initial'), introduction: document.getElementById('screen-introduction'), fvalue: document.getElementById('screen-fvalue-input'), bpm: document.getElementById('screen-bpm'), camera: document.getElementById('screen-camera'), };
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
+(async () => {
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const bpmText = document.getElementById("bpm-value");
+    const fText = document.getElementById("f-value");
+    const graph = document.getElementById("graph");
+    const gctx = graph.getContext("2d");
+    const gallery = document.getElementById("gallery");
+    const centerCircle = document.getElementById("center-circle");
+    const shutterButton = document.getElementById("shutter-button");
 
-  let selectedFValue = 22.0, lastMeasuredBpm = 100;
-  let currentStream = null, currentFacing = 'environment';
-  const MIN_F = 2.0, MAX_F = 22.0, BPM_MIN = 60, BPM_MAX = 100, DEFAULT_BPM = 80;
+    let measuring = false;
+    let bpm = 0;
+    let history = []; // BPM計測の履歴
+    let scale = 0.25; // F値のスケール (0.25-4.0)
+    let fValue = 22; // 表示F値 (2-22)
+    let lastPinch = 0;
+    let currentFacingMode = 'environment';
+    let mediaStream;
 
-  // ====== 画面管理 ======
-  function showScreen(key) { Object.values(screens).forEach(s => s.classList.remove('active')); screens[key]?.classList.add('active'); }
+    // F値とBPMの範囲
+    const MIN_F_DISPLAY = 2;
+    const MAX_F_DISPLAY = 22;
+    const MIN_SCALE = 0.25;
+    const MAX_SCALE = 4.0;
+    const MIN_BPM = 60;
+    const MAX_BPM = 100;
 
-  // ====== カメラ制御 ======
-  async function startCamera(facingMode) {
-    if (currentStream) currentStream.getTracks().forEach(track => track.stop());
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 } } });
-      video.srcObject = stream;
-      await video.play();
-      currentStream = stream; currentFacing = facingMode;
-    } catch (err) { alert("カメラの起動に失敗しました。"); }
-  }
+    // 意図しないズームを防止 (既存のまま)
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    document.addEventListener('dblclick', (e) => e.preventDefault());
+    document.body.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
 
-  // ====== フィルター効果 ======
-  function getFilterString(f) {
-      const t = (f - MIN_F) / (MAX_F - MIN_F);
-      const brightness = 1.0 + (1 - t) * 0.8;
-      const blur = (1 - t) * 15;
-      return `brightness(${brightness.toFixed(2)}) blur(${blur.toFixed(2)}px)`;
-  }
-  
-  // ====== F値入力画面 ======
-  const apertureControl = document.querySelector('.aperture-control');
-  const fValueDisplay = document.getElementById('f-value-display');
-  const apertureInput = document.getElementById('aperture');
-  const MIN_SIZE = 100, MAX_SIZE = 250;
-  const fToSize = f => MIN_SIZE + ((MAX_F - f) / (MAX_F - MIN_F)) * (MAX_SIZE - MIN_SIZE);
-  let currentFValue = selectedFValue;
-  function updateApertureUI(f) { const cF = Math.max(MIN_F, Math.min(MAX_F, f)); apertureControl.style.width = apertureControl.style.height = `${fToSize(cF)}px`; fValueDisplay.textContent = cF.toFixed(1); apertureInput.value = cF; }
-  updateApertureUI(currentFValue);
-  let lastPinchDistance = 0;
-  const getDistance = (t1, t2) => Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-  document.body.addEventListener('touchstart', e => { if (screens.fvalue.classList.contains('active') && e.touches.length === 2) { e.preventDefault(); lastPinchDistance = getDistance(e.touches[0], e.touches[1]); } }, { passive: false });
-  document.body.addEventListener('touchmove', e => { if (screens.fvalue.classList.contains('active') && e.touches.length === 2 && lastPinchDistance > 0) { e.preventDefault(); const d = getDistance(e.touches[0], e.touches[1]); currentFValue += (lastPinchDistance - d) * 0.1; updateApertureUI(currentFValue); lastPinchDistance = d; } }, { passive: false });
-
-  // ====== BPM計測画面 ======
-  const bpmVideo = document.getElementById('bpm-video');
-  async function startBpmCamera() { try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } }); bpmVideo.srcObject = s; } catch (e) { alert("BPM用カメラを開始できません"); } }
-  function stopBpmCamera() { if (bpmVideo.srcObject) { bpmVideo.srcObject.getTracks().forEach(t => t.stop()); bpmVideo.srcObject = null; } }
-  
-  async function goToCameraScreen(bpm) {
-      stopBpmCamera();
-      lastMeasuredBpm = bpm || DEFAULT_BPM;
-      selectedFValue = parseFloat(apertureInput.value);
-      showScreen('camera');
-      document.getElementById('fvalue-display-camera').textContent = `F: ${selectedFValue.toFixed(1)}`;
-      document.getElementById('bpm-display-camera').textContent = `BPM: ${lastMeasuredBpm}`;
-      video.style.filter = getFilterString(selectedFValue); // ★ プレビューにF値フィルターを適用
-      await startCamera('environment');
-  }
-
-  // ====== ★ アルバム機能 (修正版) ======
-  const Album = {
-    KEY: 'cocoro_camera_album_v4', photos: [],
-    load() { try { const s = localStorage.getItem(this.KEY); this.photos = s ? JSON.parse(s) : []; } catch (e) { this.photos = []; } this.render(); },
-    save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.photos)); } catch(e) { console.error("アルバムの保存に失敗", e); alert("アルバムの保存に失敗しました。");}},
-    add(photoData) { this.photos.unshift(photoData); this.save(); this.render(); },
-    render() {
-      const grid = document.getElementById('gallery-grid'); if (!grid) return;
-      grid.innerHTML = '';
-      this.photos.forEach((p, i) => {
-        const thumb = document.createElement('div'); thumb.className = 'cc-thumb';
-        const img = document.createElement('img'); img.src = p.src;
-        const meta = document.createElement('div'); meta.className = 'meta';
-        meta.textContent = `#${this.photos.length - i}  F:${p.f.toFixed(1)}  BPM:${p.bpm}`;
-        thumb.append(img, meta); grid.append(thumb);
-      });
-    }
-  };
-
-  // ====== ★ 新しい撮影機能 (WYSIWYG & アルバム保存) ======
-  async function captureWithMotionBlur(ctx, video, bpm) {
-    const numFrames = Math.max(1, Math.round(1 + (BPM_MAX - bpm) / (BPM_MAX - BPM_MIN) * 24));
-    ctx.globalAlpha = 1.0 / numFrames;
-    for (let i = 0; i < numFrames; i++) {
-        ctx.drawImage(video, 0, 0, ctx.canvas.width, ctx.canvas.height);
-        if (i < numFrames - 1) {
-            await new Promise(resolve => requestAnimationFrame(resolve));
+    function resizeCanvas() {
+        if (video.videoWidth > 0) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        }
+        // グラフキャンバスもリサイズ
+        if (graph.parentElement) { // 親要素が存在することを確認
+            graph.width = graph.parentElement.clientWidth;
+            graph.height = graph.parentElement.clientHeight;
         }
     }
-  }
 
-  async function takePhoto() {
-    const shutterBtn = document.getElementById('camera-shutter-btn');
-    if (shutterBtn.disabled || !video.videoWidth) return;
-    shutterBtn.disabled = true;
+    async function startCamera(facingMode) {
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1280 }, // 高解像度で取得
+                    height: { ideal: 720 }
+                }
+            });
+            mediaStream = stream;
+            video.srcObject = stream;
+            await video.play();
+            currentFacingMode = facingMode; // カメラの向きを更新
+            resizeCanvas(); // カメラ起動後にキャンバスサイズを調整
+        } catch (e) {
+            alert(`カメラの起動に失敗しました: ${e.name}`);
+            console.error(e);
+        }
+    }
 
-    try {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      
-      // 撮影するキャンバスに、プレビューと同じF値フィルターを適用
-      ctx.filter = getFilterString(selectedFValue);
-      
-      // 反転処理
-      ctx.save();
-      if (currentFacing === 'user') {
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-      }
+    video.addEventListener('loadedmetadata', () => {
+        resizeCanvas();
+    });
 
-      // BPMに応じたモーションブラーをかけながら描画
-      await captureWithMotionBlur(ctx, video, lastMeasuredBpm);
-      
-      ctx.restore(); // 反転を元に戻す
+    video.addEventListener('play', () => {
+        resizeCanvas();
+        // ユーザーカメラの場合は左右反転
+        video.style.transform = (currentFacingMode === 'user') ? 'scaleX(-1)' : 'none';
+        // F値フィルターを再適用
+        video.style.filter = computeCssFilter(fValue);
+    });
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      Album.add({ src: dataUrl, f: selectedFValue, bpm: lastMeasuredBpm });
+    // F値に応じて円のサイズと値を更新
+    function updateCircleAndFValue() {
+        const radius = 150 * scale;
+        centerCircle.style.width = radius + "px";
+        centerCircle.style.height = radius + "px";
 
-    } catch (err) { console.error('撮影エラー:', err);
-    } finally { shutterBtn.disabled = false; }
-  }
+        // スケール値(0.25-4.0)をF値(22-2)に変換
+        fValue = Math.round((MAX_SCALE - scale) / (MAX_SCALE - MIN_SCALE) * (MAX_F_DISPLAY - MIN_F_DISPLAY) + MIN_F_DISPLAY);
+        fValue = Math.max(MIN_F_DISPLAY, Math.min(MAX_F_DISPLAY, fValue)); // 範囲を保証
 
-  // ====== イベントリスナー設定 ======
-  document.getElementById('initial-next-btn')?.addEventListener('click', () => showScreen('introduction'));
-  document.getElementById('intro-next-btn')?.addEventListener('click', () => showScreen('fvalue'));
-  document.getElementById('f-value-decide-btn')?.addEventListener('click', () => { showScreen('bpm'); startBpmCamera(); });
-  document.getElementById('bpm-start-btn')?.addEventListener('click', () => { document.getElementById('bpm-status').textContent = "計測中..."; setTimeout(() => { goToCameraScreen(Math.round(Math.random() * (BPM_MAX - BPM_MIN) + BPM_MIN)); }, 3000); });
-  document.getElementById('bpm-skip-btn')?.addEventListener('click', () => goToCameraScreen(DEFAULT_BPM));
-  document.getElementById('camera-switch-btn')?.addEventListener('click', () => startCamera((currentFacing === 'user') ? 'environment' : 'user'));
-  document.getElementById('camera-shutter-btn')?.addEventListener('click', takePhoto);
-  document.getElementById('camera-info-btn')?.addEventListener('click', () => { Album.render(); document.getElementById('gallery-modal')?.classList.remove('hidden'); });
-  document.getElementById('gallery-close-btn')?.addEventListener('click', () => document.getElementById('gallery-modal')?.classList.add('hidden'));
-  document.querySelector('.cc-modal-backdrop')?.addEventListener('click', () => document.getElementById('gallery-modal')?.classList.add('hidden'));
-  
-  // ====== 初期化 ======
-  const T = { appTitle: "ココロカメラ", splashTagline: "あなたの心のシャッターを切る", start: "はじめる", next: "次へ", howtoTitle: "名前とルームコードの入力", howtoText: "あなたの名前（ニックネーム）とルームコードを<br>入力してください。（任意）", fInputTitle: "今の心の状態に合わせて<br>円を広げたり縮めたりしてください", fHint1: "F値が小さいほど「開放的」に、", fHint2: "F値が大きいほど「集中している」状態を表します。", decide: "決定", bpmTitle: "ココロのシャッタースピード", bpmPrep_html: 'カメラに<strong>指先を軽く当てて</strong>ください<br>赤みの変化から心拍数を測定します', bpmReady: "準備ができたら計測開始を押してください", bpmStart: "計測開始", skip: "スキップ", switchCam: "切り替え", shoot: "撮影", info: "アルバム", bpmMeasuring: (remain) => `計測中… 残り ${remain} 秒`, bpmResult: (bpm) => `推定BPM: ${bpm}`, cameraError: "カメラを起動できませんでした。"};
-  function applyTexts(dict) { document.querySelectorAll("[data-i18n], [data-i18n-html]").forEach(el => { const key = el.dataset.i18n || el.dataset.i18nHtml; if (dict[key]) { if (el.dataset.i18n) el.textContent = dict[key]; else el.innerHTML = dict[key]; } }); }
-  applyTexts(T);
-  Album.load();
-  showScreen('initial');
-});
+        centerCircle.textContent = fValue;
+        fText.textContent = fValue;
+        video.style.filter = computeCssFilter(fValue); // ★ リアルタイムでF値フィルターを適用
+    }
+
+    // F値からCSSフィルター文字列を生成
+    function computeCssFilter(apValue) {
+        // F値が小さいほどボケて明るく、大きいほどシャープで暗く
+        const blurPx = Math.max(0, (MAX_F_DISPLAY - apValue) / (MAX_F_DISPLAY - MIN_F_DISPLAY) * 15); // F2で15px, F22で0px
+        const brightness = 0.8 + (MAX_F_DISPLAY - apValue) / (MAX_F_DISPLAY - MIN_F_DISPLAY) * 0.7; // F2で1.5, F22で0.8
+        return `blur(${blurPx.toFixed(1)}px) brightness(${brightness.toFixed(2)})`;
+    }
+
+    // グラフ描画
+    function drawGraph() {
+        if (history.length === 0) return;
+
+        const arr = history.slice(-graph.width).map(o => o.v); // グラフ幅に合わせたデータ
+        if (arr.length < 2) { // データが少なすぎる場合は描画しない
+            gctx.clearRect(0, 0, graph.width, graph.height);
+            return;
+        }
+
+        const min = Math.min(...arr);
+        const max = Math.max(...arr);
+        gctx.clearRect(0, 0, graph.width, graph.height);
+        gctx.beginPath();
+        arr.forEach((v, i) => {
+            const x = (i / arr.length) * graph.width;
+            const y = graph.height - ((v - min) / (max - min + 1e-6)) * graph.height; // +1e-6でゼロ除算回避
+            i === 0 ? gctx.moveTo(x, y) : gctx.lineTo(x, y);
+        });
+        gctx.strokeStyle = "#0f8";
+        gctx.lineWidth = 1.5;
+        gctx.stroke();
+    }
+
+    // BPM計算
+    function calcBPM() {
+        if (history.length < 30) return 0; // 最低限のデータ量
+        
+        // 過去数秒間のデータに限定して計算
+        const relevantHistory = history.filter(o => (Date.now() - o.t) < 8000); // 直近8秒間のデータ
+        if (relevantHistory.length < 30) return 0;
+
+        const vals = relevantHistory.map(o => o.v);
+        const times = relevantHistory.map(o => o.t);
+
+        // 高速フーリエ変換 (FFT) を使用して周波数解析
+        // この部分は、より高度なFFTライブラリを使用するのが理想ですが、ここでは簡易的な実装を継続
+        const n = vals.length;
+        if (n === 0) return 0;
+
+        const mean = vals.reduce((a, b) => a + b) / n;
+        const detrended = vals.map(v => v - mean);
+
+        const real = new Array(n).fill(0);
+        const imag = new Array(n).fill(0);
+
+        for (let k = 0; k < n; k++) { // 周波数ビン
+            for (let t = 0; t < n; t++) { // 時間サンプル
+                const angle = (2 * Math.PI * t * k) / n;
+                real[k] += detrended[t] * Math.cos(angle);
+                imag[k] -= detrended[t] * Math.sin(angle);
+            }
+        }
+
+        const power = real.map((r, i) => Math.hypot(r, imag[i]));
+        const duration = (times[times.length - 1] - times[0]) / 1000; // サンプル期間（秒）
+
+        if (duration < 5) return 0; // 短すぎる期間では正確なBPMは計算できない
+
+        const freqResolution = 1 / duration; // 周波数分解能 (Hz)
+        
+        let maxPower = 0;
+        let dominantBpm = 0;
+
+        for (let i = 0; i < n / 2; i++) { // ナイキスト周波数まで
+            const currentBpm = i * freqResolution * 60; // BPMに変換
+
+            if (currentBpm >= MIN_BPM && currentBpm <= MAX_BPM) {
+                if (power[i] > maxPower) {
+                    maxPower = power[i];
+                    dominantBpm = currentBpm;
+                }
+            }
+        }
+        return Math.round(dominantBpm);
+    }
+
+    // メインループ
+    function loop() {
+        if (video.readyState >= 2) {
+            // BPM計測中の処理
+            if (measuring) {
+                // video要素から直接データを取得し、赤み（平均輝度）を計算
+                // キャンバスへの描画は行わない（フィルターが干渉しないように）
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // キャンバスはクリア
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // 一時的に描画
+                
+                const size = 100; // サンプリング領域
+                const x = (canvas.width - size) / 2;
+                const y = (canvas.height - size) / 2;
+                const imgData = ctx.getImageData(x, y, size, size);
+                
+                let sum = 0;
+                for(let i=0; i<imgData.data.length; i+=4) {
+                    sum += (imgData.data[i] * 0.299 + imgData.data[i+1] * 0.587 + imgData.data[i+2] * 0.114); // 輝度計算
+                }
+                const avgLuminance = sum / (imgData.data.length/4);
+                
+                history.push({v: avgLuminance, t: Date.now()});
+                if(history.length > 512) history.shift(); // 履歴を制限
+
+                drawGraph(); // グラフ描画
+            }
+        }
+        requestAnimationFrame(loop);
+    }
+
+    // BPM測定開始ボタン
+    document.getElementById("start-bpm-button").onclick = () => {
+        if(measuring) return; // 既に測定中の場合は何もしない
+
+        measuring = true;
+        history = []; // 履歴をリセット
+        bpmText.textContent = "測定中...";
+        
+        // 8秒後に測定終了
+        setTimeout(() => {
+            measuring = false;
+            const newBpm = calcBPM();
+            bpm = (newBpm >= MIN_BPM && newBpm <= MAX_BPM) ? newBpm : 0; // 有効範囲内のBPMのみ採用
+            bpmText.textContent = (bpm > 0) ? bpm : "---"; // 0の場合は---表示
+        }, 8000); // 8秒間測定
+    };
+
+    // カメラ切り替えボタン
+    document.getElementById('switch-camera-button').onclick = async () => {
+        currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
+        await startCamera(currentFacingMode);
+    };
+
+    // シャッターボタン
+    shutterButton.onclick = async () => {
+        if (shutterButton.classList.contains('disabled')) return;
+        shutterButton.classList.add('disabled'); // 連打防止
+
+        try {
+            // 位置情報取得
+            let position = null;
+            let locationString = "位置情報なし";
+            try {
+                position = await getLocation();
+                locationString = `Lat:${position.coords.latitude.toFixed(5)} Lon:${position.coords.longitude.toFixed(5)}`;
+            } catch (error) {
+                console.warn("位置情報取得エラー:", error.message);
+                if(error.code === 1) {
+                    // alert("位置情報の許可がありません。ブラウザや端末の設定を確認してください。");
+                }
+            }
+            
+            // 撮影用キャンバスに描画
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const capCtx = canvas.getContext("2d");
+
+            // ユーザーカメラの場合は左右反転
+            capCtx.save();
+            if (currentFacingMode === 'user') {
+                capCtx.translate(canvas.width, 0);
+                capCtx.scale(-1, 1);
+            }
+            
+            // F値フィルターを撮影用キャンバスに適用
+            capCtx.filter = computeCssFilter(fValue);
+
+            // BPMに応じたモーションブラーをかけながら描画
+            await captureWithMotionBlur(capCtx, video, bpm, canvas.width, canvas.height);
+            
+            capCtx.restore(); // 反転を元に戻す
+
+            let imageUrl = canvas.toDataURL("image/jpeg", 0.9);
+
+            // EXIF情報埋め込み
+            if (position && window.piexif) {
+                try {
+                    const now = new Date();
+                    const dateStr = `${now.getFullYear()}:${(now.getMonth()+1).toString().padStart(2,'0')}:${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+                    
+                    const exifObj = {
+                        "0th": {
+                            [piexif.ImageIFD.Software]: "ココロカメラ",
+                            [piexif.ImageIFD.DateTime]: dateStr,
+                        },
+                        "Exif": {
+                            [piexif.ExifIFD.DateTimeOriginal]: dateStr,
+                            [piexif.ExifIFD.DateTimeDigitized]: dateStr,
+                            // F値とBPMをカスタムExifタグとして追加することも可能 (対応するタグがあれば)
+                            // あるいは、UserCommentとして文字列で埋め込む
+                            [piexif.ExifIFD.UserComment]: piexif.tools.asciiToBytes(`F:${fValue},BPM:${bpm}`)
+                        },
+                        "GPS": {
+                            [piexif.GPSIFD.GPSDateStamp]: `${now.getUTCFullYear()}:${(now.getUTCMonth()+1).toString().padStart(2,'0')}:${now.getUTCDate().toString().padStart(2,'0')}`,
+                            [piexif.GPSIFD.GPSTimeStamp]: [now.getUTCHours(),
