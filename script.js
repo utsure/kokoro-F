@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  // ====== 要素参照 ======
   const screens = {
     initial: document.getElementById('screen-initial'),
     fvalue: document.getElementById('screen-fvalue-input'),
