@@ -41,11 +41,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function addPhotoToDB(photoData) {
     return new Promise((resolve, reject) => {
+      if (!db) return reject(new Error('Database is not initialized.'));
       const transaction = db.transaction(['photos'], 'readwrite');
       const store = transaction.objectStore('photos');
       const request = store.add(photoData);
       request.onsuccess = e => resolve(e.target.result); // Returns new ID
-      request.onerror = e => reject('Failed to add photo: ' + e.target.error);
+      request.onerror = e => reject(e.target.error);
     });
   }
 
@@ -55,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const store = transaction.objectStore('photos');
       const request = store.getAll();
       request.onsuccess = e => resolve(e.target.result);
-      request.onerror = e => reject('Failed to get photos: ' + e.target.error);
+      request.onerror = e => reject(e.target.error);
     });
   }
 
@@ -79,7 +80,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     photos.forEach(addThumbnailToGallery);
   }
 
-
   // ====== 画面遷移 ======
   function showScreen(key) {
     Object.values(screens).forEach(s => s.classList.remove('active'));
@@ -98,31 +98,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentStream = stream;
       currentFacing = facingMode;
       
-      // Canvasのサイズをビデオに合わせる
-      const { videoWidth, videoHeight } = video;
-      previewCanvas.width = videoWidth;
-      previewCanvas.height = videoHeight;
-      captureCanvas.width = videoWidth;
-      captureCanvas.height = videoHeight;
+      previewCanvas.width = video.videoWidth;
+      previewCanvas.height = video.videoHeight;
 
       startPreviewLoop();
     } catch (err) { alert("カメラの起動に失敗しました。"); }
   }
 
-  // ====== プレビュー処理 (インカメラ反転とモーションブラー) ======
+  // ====== プレビュー処理 ======
   function startPreviewLoop() {
     const render = () => {
       if (!currentStream) return;
       previewCtx.save();
-      // モーションブラー効果
       const t = (lastMeasuredBpm - BPM_MIN) / (BPM_MAX - BPM_MIN);
       const trailAlpha = 0.5 * (1 - t);
       previewCtx.globalAlpha = trailAlpha;
       previewCtx.drawImage(previewCanvas, 0, 0);
       
-      // 新しいフレームの描画
       previewCtx.globalAlpha = 1.0;
-      // インカメラの場合、鏡のように左右反転
       if (currentFacing === 'user') {
         previewCtx.translate(previewCanvas.width, 0);
         previewCtx.scale(-1, 1);
@@ -163,7 +156,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   updateApertureUI(currentFValue);
 
-  // ピンチ操作でF値を変更
   let lastPinchDistance = 0;
   const getDistance = (t1, t2) => Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
   document.body.addEventListener('touchstart', e => {
@@ -205,48 +197,67 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ====== 撮影機能 ======
+  async function captureWithMotionBlur(ctx, videoElement, bpm) {
+    const numFrames = Math.max(1, Math.round(3 + (BPM_MAX - bpm) / (BPM_MAX - BPM_MIN) * 20));
+    ctx.globalAlpha = 1.0 / numFrames;
+
+    for (let i = 0; i < numFrames; i++) {
+        ctx.save();
+        if (currentFacing === 'user') {
+            ctx.translate(ctx.canvas.width, 0);
+            ctx.scale(-1, 1);
+        }
+        ctx.drawImage(videoElement, 0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.restore();
+        if (i < numFrames - 1) {
+            await new Promise(resolve => setTimeout(resolve, 16));
+        }
+    }
+    ctx.globalAlpha = 1.0;
+  }
+
   document.getElementById('camera-shutter-btn')?.addEventListener('click', async () => {
     const shutterBtn = document.getElementById('camera-shutter-btn');
-    if (shutterBtn.disabled) return;
+    if (shutterBtn.disabled || !video.videoWidth) return;
     shutterBtn.disabled = true;
 
-    try {
-      const ctx = captureCanvas.getContext('2d');
-      ctx.clearRect(0, 0, captureCanvas.width, captureCanvas.height);
-      ctx.save();
-      // インカメラの場合は撮影結果も反転
-      if (currentFacing === 'user') {
-        ctx.translate(captureCanvas.width, 0);
-        ctx.scale(-1, 1);
-      }
-      ctx.drawImage(previewCanvas, 0, 0);
-      ctx.restore();
+    if (!db) {
+        alert('データベースの準備ができていません。ページをリロードしてください。');
+        shutterBtn.disabled = false;
+        return;
+    }
 
-      captureCanvas.toBlob(async (blob) => {
-        if (!blob) {
-          alert('撮影データの生成に失敗しました。');
-          return;
-        }
-        const photoData = {
-          blob: blob,
-          fValue: selectedFValue,
-          bpm: lastMeasuredBpm,
-          timestamp: Date.now()
-        };
-        try {
-          const newId = await addPhotoToDB(photoData);
-          photoData.id = newId;
-          addThumbnailToGallery(photoData);
-        } catch (err) {
-          console.error('写真の保存に失敗:', err);
-          alert('写真の保存に失敗しました。');
-        }
-      }, 'image/jpeg', 0.9);
+    try {
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        const ctx = captureCanvas.getContext('2d');
+        
+        ctx.filter = getFilterString(selectedFValue);
+        await captureWithMotionBlur(ctx, video, lastMeasuredBpm);
+        ctx.filter = 'none';
+
+        captureCanvas.toBlob(async (blob) => {
+            if (!blob) {
+                alert('撮影データの生成に失敗しました。');
+                return;
+            }
+            const photoData = {
+                blob: blob, fValue: selectedFValue, bpm: lastMeasuredBpm, timestamp: Date.now()
+            };
+            try {
+                const newId = await addPhotoToDB(photoData);
+                photoData.id = newId;
+                addThumbnailToGallery(photoData);
+            } catch (err) {
+                console.error('写真の保存に失敗:', err);
+                alert(`写真の保存に失敗しました。\nエラー: ${err.message}`);
+            }
+        }, 'image/jpeg', 0.9);
     } catch (err) {
-      console.error('撮影エラー:', err);
-      alert('撮影に失敗しました。');
+        console.error('撮影エラー:', err);
+        alert(`撮影中にエラーが発生しました。\nエラー: ${err.message}`);
     } finally {
-      shutterBtn.disabled = false;
+        shutterBtn.disabled = false;
     }
   });
 
@@ -261,7 +272,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   document.getElementById('bpm-start-btn')?.addEventListener('click', () => {
     bpmStatus.textContent = "計測中...";
-    // 3秒後にダミーのBPM値でカメラ画面へ遷移
     setTimeout(() => {
       const bpm = Math.round(Math.random() * (BPM_MAX - BPM_MIN) + BPM_MIN);
       goToCameraScreen(bpm);
@@ -275,7 +285,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     startCamera(nextFacing);
   });
 
-  // アルバムモーダルの表示/非表示
   document.getElementById('camera-album-btn')?.addEventListener('click', async () => {
     await loadGallery();
     galleryModal.classList.remove('hidden');
