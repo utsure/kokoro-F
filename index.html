@@ -2,165 +2,48 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>ココロカメラ</title>
-
-    <script src="https://cdn.jsdelivr.net/gh/flozz/StackBlur/stackblur.min.js"></script>
-
-  <style>
-    /* ベース */
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      width: 100%;
-      font-family: "Hiragino Kaku Gothic ProN", "ヒラギノ角ゴ ProN W3",
-                   "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
-      /* ★ 修正：背景色は白を基準に */
-      background: #fff;
-    }
-    * { box-sizing: border-box; }
-
-    body {
-      /* ★ 修正：センタリングを解除し、全画面表示の基礎に */
-      overflow: hidden;
-      touch-action: none;
-      overscroll-behavior: none;
-    }
-
-    /* ★ 修正：全画面表示にするため、サイズ制限とアスペクト比を解除 */
-    .app-container {
-      width: 100%;
-      height: 100%;
-      background: #fff;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .screen {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column;
-      justify-content: center; align-items: center;
-      text-align: center; padding: 20px;
-      opacity: 0; pointer-events: none;
-      transition: opacity .4s ease;
-    }
-    .screen.active { opacity: 1; pointer-events: auto; }
-
-    h1 { font-size: 2.3rem; font-weight: 800; color: #333; margin: 0 0 10px; }
-    h2 { font-size: 1.7rem; font-weight: 700; color: #444; margin: 0 0 10px; }
-    p  { font-size: 1rem; color: #666; line-height: 1.6; margin: 0 0 8px; }
-
-    button {
-      padding: 14px 28px; font-size: 16px; font-weight: 700;
-      border-radius: 999px; cursor: pointer;
-      background: #111; color: #fff; border: none;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      transition: transform .15s, box-shadow .15s, opacity .15s;
-    }
-    button:hover { transform: translateY(-1px); box-shadow: 0 6px 15px rgba(0,0,0,0.28); }
-    button:active { transform: translateY(0); }
-    button.secondary { background: #ececec; color: #222; }
-    button:focus-visible { outline: 3px solid #5aa9ff; outline-offset: 2px; }
-
-    .camera-btn, #camera-switch-btn, #camera-shutter-btn, #camera-info-btn {
-      white-space: nowrap; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-    }
-
-    #screen-fvalue-input { display: flex; flex-direction: column; justify-content: space-around; }
-    .f-value-title-container { width: 100%; padding-top: 8px; }
-    .aperture-control-container { display: flex; justify-content: center; align-items: center; flex: 1; width: 100%; }
-    .description-text-container { display: flex; flex-direction: column; align-items: center; padding-bottom: 12px; gap: 8px; }
-    .f-value-title { font-size: 1.1rem; font-weight: 600; color: #555; }
-
-    .aperture-control {
-      position: relative;
-      /* F値に応じてJSでサイズが変わる */
-      transition: width .18s ease, height .18s ease;
-    }
-    .aperture-ring {
-      width: 100%; height: 100%; border-radius: 50%; border: 4px solid #2A9858; background: #2A9858;
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.25), 0 5px 15px rgba(0,0,0,0.25);
-    }
-    .aperture-value {
-      position: absolute; inset: 0; display: grid; place-items: center;
-      font-size: 2.3rem; font-weight: 800; color: #fff;
-    }
-
-    #screen-bpm { background: #fff; color: #222; }
-    #screen-bpm h2 { color: #000; }
-    .bpm-instruction { color: #444; }
-    .bpm-video-wrapper {
-      width: 80%; max-width: 320px; aspect-ratio: 4/3; border: 4px solid #D30000;
-      border-radius: 12px; margin: 12px 0; background: #fff; overflow: hidden;
-    }
-    #bpm-video { width: 100%; height: 100%; object-fit: cover; display: block; border: none; }
-    #bpm-status { color: #444; margin: 6px 0 12px; }
-    .bpm-actions {
-      position: relative; width: 100%; margin-top: 20px;
-      display: flex; justify-content: center; align-items: center;
-    }
-    #bpm-start-btn { margin: 0 auto; z-index: 1; }
-    #bpm-skip-btn {
-      position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-      font-size: 14px; padding: 8px 14px;
-    }
-
-    #screen-camera { background: #000; padding: 0; }
-    #preview-canvas, #video {
-      position: absolute; inset: 0; width: 100%; height: 100%;
-      object-fit: cover; z-index: 1;
-    }
-    #canvas { display: none; }
-
-    .camera-ui {
-      position: absolute; inset: 0; display: flex; flex-direction: column;
-      justify-content: space-between; align-items: center; padding: 16px; z-index: 2;
-    }
-    .camera-ui-top {
-      width: 100%; display: flex; justify-content: space-between; padding: 10px 12px;
-      color: #fff; font-weight: 700; text-shadow: 1px 1px 2px rgba(0,0,0,.5);
-      background: linear-gradient(to bottom, rgba(0,0,0,.45), transparent);
-      border-radius: 10px;
-    }
-    .camera-ui-bottom { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0 16px 10px; }
-    #camera-shutter-btn {
-      padding: 18px 36px; border: 3px solid #fff; background: rgba(255,255,255,.3); color: #fff;
-      font-size: 1.1rem; font-weight: 800; backdrop-filter: blur(5px);
-    }
-  </style>
+    <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <div class="app-container">
-        <div id="screen-initial" class="screen active" aria-hidden="false">
-      <h1 data-i18n="appTitle"></h1><p data-i18n="splashTagline"></p>
-      <button id="initial-next-btn" aria-label="アプリを始める" data-i18n="start"></button>
+        <div id="screen-initial" class="screen active">
+      <h1 data-i18n="appTitle"></h1>
+      <p data-i18n="splashTagline"></p>
+      <button id="initial-next-btn" data-i18n="start"></button>
     </div>
-        <div id="screen-introduction" class="screen" aria-hidden="true">
-      <h2 data-i18n="howtoTitle"></h2><p data-i18n-html="howtoText"></p>
-      <div class="meta-inputs" style="display:flex; gap:8px; margin:12px 0; width: 90%; max-width: 400px;">
-        <input id="participant-name" type="text" inputmode="text" placeholder="ニックネーム（任意）" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ddd;" />
-        <input id="room-code" type="text" inputmode="text" placeholder="ルームコード（任意）" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ddd;" />
+
+        <div id="screen-introduction" class="screen">
+      <h2 data-i18n="howtoTitle"></h2>
+      <p data-i18n-html="howtoText"></p>
+      <div class="meta-inputs">
+        <input id="participant-name" type="text" placeholder="ニックネーム（任意）" />
+        <input id="room-code" type="text" placeholder="ルームコード（任意）" />
       </div>
-      <button id="intro-next-btn" aria-label="次へ" data-i18n="next"></button>
+      <button id="intro-next-btn" data-i18n="next"></button>
     </div>
-        <div id="screen-fvalue-input" class="screen" aria-hidden="true">
+
+        <div id="screen-fvalue-input" class="screen">
       <div class="f-value-title-container"><p class="f-value-title" data-i18n-html="fInputTitle"></p></div>
       <div class="aperture-control-container">
-        <div class="aperture-control" role="slider" aria-valuemin="2.0" aria-valuemax="22.0" aria-valuenow="22.0" aria-label="F値">
-          <div class="aperture-ring"></div><div class="aperture-value" id="f-value-display">22.0</div>
+        <div class="aperture-control">
+          <div class="aperture-ring"></div>
+          <div class="aperture-value" id="f-value-display">22.0</div>
         </div>
       </div>
       <div class="description-text-container">
         <div class="description-text">
           <p data-i18n="fHint1"></p><p data-i18n="fHint2"></p>
         </div>
-        <input type="hidden" id="aperture" value="22.0" />
-        <button id="f-value-decide-btn" aria-label="F値を決定する" data-i18n="decide"></button>
+        <input type="hidden" id="aperture-value-input" value="22.0" />
+        <button id="f-value-decide-btn" data-i18n="decide"></button>
       </div>
     </div>
-        <div id="screen-bpm" class="screen" aria-hidden="true">
-      <h2 data-i18n="bpmTitle"></h2><p class="bpm-instruction" data-i18n-html="bpmPrep_html"></p>
+
+        <div id="screen-bpm" class="screen">
+      <h2 data-i18n="bpmTitle"></h2>
+      <p class="bpm-instruction" data-i18n-html="bpmPrep_html"></p>
       <div class="bpm-video-wrapper"><video id="bpm-video" autoplay playsinline muted></video></div>
       <canvas id="bpm-canvas" style="display:none;"></canvas>
       <p id="bpm-status" data-i18n="bpmReady"></p>
@@ -169,282 +52,24 @@
         <button id="bpm-skip-btn" class="secondary" data-i18n="skip"></button>
       </div>
     </div>
-        <div id="screen-camera" class="screen" aria-hidden="true">
-      <video id="video" autoplay playsinline></video>
-      <canvas id="canvas"></canvas>
+
+        <div id="screen-camera" class="screen">
+            <video id="video" autoplay playsinline muted style="display:none;"></video>
+      <canvas id="capture-canvas" style="display:none;"></canvas>
       <div class="camera-ui">
         <div class="camera-ui-top">
           <span id="fvalue-display-camera">F: 22.0</span>
-          <span id="bpm-display-camera">BPM: -- / SS: --</span>
+          <span id="bpm-display-camera">BPM: --</span>
         </div>
         <div class="camera-ui-bottom">
           <button id="camera-switch-btn" class="camera-btn" data-i18n="switchCam"></button>
           <button id="camera-shutter-btn" class="camera-btn" data-i18n="shoot"></button>
-          <button id="camera-info-btn" class="camera-btn" data-i18n="info"></button>
+          <button id="camera-info-btn" class="camera-btn" data-i18n="info">INFO</button>
         </div>
       </div>
     </div>
   </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  // ====== 画面管理 ======
-  const screens = {
-    initial: document.getElementById('screen-initial'),
-    introduction: document.getElementById('screen-introduction'),
-    fvalue: document.getElementById('screen-fvalue-input'),
-    bpm: document.getElementById('screen-bpm'),
-    camera: document.getElementById('screen-camera'),
-  };
-  function showScreen(key) {
-    Object.values(screens).forEach(s => s?.classList.remove('active'));
-    screens[key]?.classList.add('active');
-  }
-
-  // ====== 文言 ======
-  const T = {
-    appTitle: "ココロカメラ", splashTagline: "あなたの心のシャッターを切る", start: "はじめる",
-    next: "次へ", howtoTitle: "名前とルームコードの入力", howtoText: "あなたの名前（ニックネーム）とルームコードを<br>入力してください。（任意）",
-    fInputTitle: "今の心の状態に合わせて<br>円を広げたり縮めたりしてください", fHint1: "F値が小さい=開放的", fHint2: "F値が大きい＝集中している",
-    decide: "決定", bpmTitle: "ココロのシャッタースピード", bpmPrep_html: 'カメラに<strong>指先を軽く当てて</strong>ください<br>赤みの変化から心拍数を測定します',
-    bpmReady: "準備ができたら計測開始を押してください", bpmStart: "計測開始", skip: "スキップ", switchCam: "切り替え", shoot: "撮影",
-    info: "ギャラリー", bpmMeasuring: (remain) => `計測中… 残り ${remain} 秒`, bpmResult: (bpm) => `推定BPM: ${bpm}`,
-    cameraError: "カメラを起動できません。端末の設定からカメラ権限を許可してください。"
-  };
-  function applyTexts(dict) {
-    document.querySelectorAll("[data-i18n], [data-i18n-html]").forEach(el => {
-        const key = el.dataset.i18n || el.dataset.i18nHtml;
-        if (dict[key]) {
-            if (el.dataset.i18n) el.textContent = dict[key];
-            else el.innerHTML = dict[key];
-        }
-    });
-  }
-  applyTexts(T);
-
-  const video = document.getElementById('video');
-  const rawCanvas = document.getElementById('canvas');
-  const previewCanvas = document.createElement('canvas');
-  const previewCtx = previewCanvas.getContext('2d');
-  if (screens.camera) {
-    screens.camera.insertBefore(previewCanvas, video);
-  }
-
-  // ====== カメラ/プレビュー制御 ======
-  let currentStream = null;
-  let rafId = null;
-  let currentFacing = 'environment';
-  const clamp = (x,a,b)=>Math.min(Math.max(x,a),b);
-
-  function startPreviewLoop() {
-    if (rafId) cancelAnimationFrame(rafId);
-    const render = () => {
-      if (video.videoWidth) {
-        if (previewCanvas.width !== video.videoWidth || previewCanvas.height !== video.videoHeight) {
-          previewCanvas.width  = video.videoWidth;
-          previewCanvas.height = video.videoHeight;
-        }
-        previewCtx.save();
-        if (currentFacing === 'user') {
-          previewCtx.translate(previewCanvas.width, 0);
-          previewCtx.scale(-1, 1);
-        }
-        previewCtx.drawImage(video, 0, 0, previewCanvas.width, previewCanvas.height);
-        previewCtx.restore();
-      }
-      rafId = requestAnimationFrame(render);
-    };
-    rafId = requestAnimationFrame(render);
-  }
-  function stopPreviewLoop(){ if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
-
-  async function startCamera(facingMode = 'environment') {
-    try {
-      if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-      const constraints = { video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = stream;
-      await video.play();
-      currentStream = stream;
-      currentFacing = facingMode;
-      video.style.display = 'none';
-      startPreviewLoop();
-    } catch (err) {
-      console.error('カメラエラー:', err);
-      alert(T.cameraError);
-    }
-  }
-
-  // ====== F値とフィルター効果 ======
-  let selectedFValue = 22.0;
-  const MIN_F = 2.0, MAX_F = 22.0;
-  const BRIGHT_MIN = 0.12, BRIGHT_MAX = 3.6, BRIGHT_STRENGTH = 1.35;
-
-  // ★ 修正：プレビューと撮影結果を同期させるための共通フィルター関数
-  function getFilterString(f) {
-      const t = Math.max(0, Math.min(1, (f - MIN_F) / (MAX_F - MIN_F)));
-      const t2 = Math.pow(t, BRIGHT_STRENGTH);
-      const lnMin = Math.log(BRIGHT_MIN), lnMax = Math.log(BRIGHT_MAX);
-      const brightness = Math.exp(lnMax + (lnMin - lnMax) * t2);
-      
-      // F値が小さいほどボケが強くなるように調整
-      const blurValue = (1 - t) * 10; // F2.0で最大10pxのボケ
-
-      return `brightness(${brightness.toFixed(2)}) blur(${blurValue.toFixed(2)}px)`;
-  }
-
-  function applyFnumberLight(f) {
-      if (previewCanvas) {
-          previewCanvas.style.filter = getFilterString(f);
-      }
-  }
-
-  // ====== 画面遷移 ======
-  document.getElementById('initial-next-btn').addEventListener('click', () => showScreen('introduction'));
-  document.getElementById('intro-next-btn').addEventListener('click', () => showScreen('fvalue'));
-
-  // ====== F値（ピンチ操作） ======
-  const apertureControl = document.querySelector('.aperture-control');
-  const fValueDisplay = document.getElementById('f-value-display');
-  const apertureInput = document.getElementById('aperture');
-  const MIN_SIZE = 100, MAX_SIZE = 250;
-  const fToSize = f => MIN_SIZE + ((MAX_F - f) / (MAX_F - MIN_F)) * (MAX_SIZE - MIN_SIZE);
-  let currentFValue = selectedFValue;
-  let lastPinchDistance = 0;
-
-  function updateApertureUI(f) {
-    const clampedF = clamp(f, MIN_F, MAX_F);
-    const size = fToSize(clampedF);
-    apertureControl.style.width = apertureControl.style.height = `${size}px`;
-    const roundedF = Math.round(clampedF);
-    fValueDisplay.textContent = roundedF;
-    apertureInput.value = roundedF;
-    applyFnumberLight(clampedF); // プレビューに即時反映
-  }
-  if (apertureControl) { updateApertureUI(currentFValue); }
-
-  const getDistance = (t1, t2) => Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-  document.body.addEventListener('touchstart', e => {
-    if (screens.fvalue.classList.contains('active') && e.touches.length === 2) {
-      e.preventDefault(); lastPinchDistance = getDistance(e.touches[0], e.touches[1]);
-    }
-  }, { passive: false });
-  document.body.addEventListener('touchmove', e => {
-    if (screens.fvalue.classList.contains('active') && e.touches.length === 2 && lastPinchDistance) {
-      e.preventDefault();
-      const currentDist = getDistance(e.touches[0], e.touches[1]);
-      const delta = lastPinchDistance - currentDist;
-      currentFValue += delta * 0.1;
-      updateApertureUI(currentFValue);
-      lastPinchDistance = currentDist;
-    }
-  }, { passive: false });
-  document.body.addEventListener('touchend', () => { lastPinchDistance = 0; });
-
-  document.getElementById('f-value-decide-btn').addEventListener('click', async () => {
-    selectedFValue = clamp(parseFloat(apertureInput.value), MIN_F, MAX_F);
-    showScreen('bpm');
-    await startBpmCamera();
-  });
-
-  // ====== BPM 計測 ======
-  const bpmVideo = document.getElementById('bpm-video');
-  const bpmStatus = document.getElementById('bpm-status');
-  let bpmStream = null;
-  const defaultBpm = 80;
-  const BPM_MIN = 60, BPM_MAX = 100;
-  let lastMeasuredBpm = 0;
-
-  async function startBpmCamera() {
-    stopPreviewLoop();
-    if(currentStream) currentStream.getTracks().forEach(t=>t.stop());
-    try {
-      if (bpmStream) bpmStream.getTracks().forEach(t => t.stop());
-      const constraints = { video: { facingMode: { ideal: 'environment' }, width:{ideal:640}, height:{ideal:480} }, audio: false };
-      bpmStream = await navigator.mediaDevices.getUserMedia(constraints);
-      bpmVideo.srcObject = bpmStream;
-      await bpmVideo.play();
-      bpmStatus.textContent = T.bpmReady;
-    } catch (e) {
-      console.error(e); bpmStatus.textContent = 'カメラ起動に失敗しました。スキップも可能です。';
-    }
-  }
-  function stopBpmCamera() {
-    if (bpmStream) { bpmStream.getTracks().forEach(t => t.stop()); bpmStream = null; }
-  }
-
-  async function goToCameraScreen(bpm) {
-      stopBpmCamera();
-      lastMeasuredBpm = bpm;
-      showScreen('camera');
-      document.getElementById('fvalue-display-camera').textContent = `F: ${selectedFValue.toFixed(1)}`;
-      document.getElementById('bpm-display-camera').textContent = `BPM: ${bpm}`;
-      applyFnumberLight(selectedFValue);
-      await startCamera('environment');
-  }
-  document.getElementById('bpm-start-btn').addEventListener('click', () => {
-    // デモ用に計測完了をシミュレート
-    setTimeout(() => goToCameraScreen(Math.round(Math.random() * (BPM_MAX - BPM_MIN) + BPM_MIN)), 3000);
-  });
-  document.getElementById('bpm-skip-btn').addEventListener('click', () => goToCameraScreen(defaultBpm));
-
-  // ====== カメラ機能 ======
-  document.getElementById('camera-switch-btn').addEventListener('click', async () => {
-    const next = (currentFacing === 'user') ? 'environment' : 'user';
-    await startCamera(next);
-  });
-
-  const sleep = ms => new Promise(res => setTimeout(res, ms));
-
-  // ====== シャッター処理 ======
-  document.getElementById('camera-shutter-btn').addEventListener('click', async () => {
-    try {
-      if (!video.videoWidth) return;
-      const captureCanvas = rawCanvas;
-      captureCanvas.width  = video.videoWidth;
-      captureCanvas.height = video.videoHeight;
-      const ctx = captureCanvas.getContext('2d');
-      ctx.clearRect(0, 0, captureCanvas.width, captureCanvas.height);
-
-      // ★ 修正：共通フィルター関数を使い、撮影結果に効果を反映
-      ctx.filter = getFilterString(selectedFValue);
-
-      // モーションブラーのロジック
-      const bpm = lastMeasuredBpm || defaultBpm;
-      const sec = (1 / Math.max(1, bpm));
-      const frameRate = 30;
-      const frameCount = Math.max(1, Math.round(sec * frameRate));
-      
-      // 複数フレームを重ねてブラーを表現
-      ctx.globalAlpha = 1.0 / frameCount;
-      for (let i = 0; i < frameCount; i++) {
-          ctx.save();
-          if (currentFacing === 'user') {
-              ctx.translate(captureCanvas.width, 0);
-              ctx.scale(-1, 1);
-          }
-          ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-          ctx.restore();
-          if (i < frameCount - 1) {
-              await sleep(1000 / frameRate);
-          }
-      }
-      ctx.globalAlpha = 1.0;
-      ctx.filter = 'none';
-
-      const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.9);
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `cocoro_camera_${Date.now()}.jpg`;
-      a.click();
-    } catch (err) {
-      console.error('撮影エラー:', err); alert('撮影に失敗しました。');
-    }
-  });
-  
-  // ====== 初期表示 ======
-  showScreen('initial');
-});
-</script>
+    <script src="./script.js" defer></script>
 </body>
 </html>
