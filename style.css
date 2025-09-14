@@ -19,15 +19,69 @@ button:active { transform: translateY(1px); }
 button:disabled { background: #888; cursor: not-allowed; }
 button.secondary { background: #ececec; color: #222; }
 input { padding: 10px; border-radius: 8px; border: 1px solid #ddd; flex: 1; }
-.meta-inputs { display: flex; gap: 8px; margin: 12px 0; width: 90%; }
+
 
 /* F値入力画面固有 */
 #screen-fvalue-input { justify-content: space-around; }
-.aperture-control-container { flex: 1; display:flex; align-items:center; justify-content:center;}
+.f-value-title-container { margin-bottom: 20px; }
 .f-value-title { font-size: 1.1rem; font-weight: 600; color: #555; }
-.aperture-control { position: relative; width: 200px; height: 200px; transition: all .18s ease; }
-.aperture-ring { width: 100%; height: 100%; border-radius: 50%; background: #2A9858; box-shadow: inset 0 0 10px rgba(0,0,0,0.25), 0 5px 15px rgba(0,0,0,0.25); }
-.aperture-value { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.3rem; font-weight: 800; color: #fff; }
+
+.aperture-control-container {
+    flex: 1; /* 縦方向に中央寄せ */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    /* overflow: hidden; */ /* ピンチで円が大きくなるので、はみ出しを隠さない */
+}
+
+.aperture-control {
+    position: relative;
+    width: 200px; /* 初期サイズ */
+    height: 200px; /* 初期サイズ */
+    transition: all .05s linear; /* より滑らかなアニメーション */
+    touch-action: none; /* ピンチジェスチャーが他のスクロールと競合しないように */
+    user-select: none;
+    flex-shrink: 0; /* 親の縮小に影響されないように */
+}
+
+.aperture-ring {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #2A9858;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.25), 0 5px 15px rgba(0,0,0,0.25);
+    transition: transform 0.05s linear; /* リング自身の伸縮アニメーション */
+}
+
+.aperture-value {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 2.3rem;
+    font-weight: 800;
+    color: #fff;
+    pointer-events: none; /* テキストは操作を受け付けない */
+}
+
+.description-text-container {
+    margin-top: 20px; /* UIの下部に配置 */
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.description-text {
+    font-size: 0.9rem;
+    color: #777;
+    margin-bottom: 15px;
+}
+#f-value-decide-btn {
+    width: 80%;
+    max-width: 200px;
+}
+
 
 /* BPM計測画面固有 */
 .bpm-video-wrapper { width: 80%; max-width: 320px; aspect-ratio: 4/3; border: 4px solid #D30000; border-radius: 12px; margin: 12px 0; overflow: hidden; }
@@ -36,14 +90,13 @@ input { padding: 10px; border-radius: 8px; border: 1px solid #ddd; flex: 1; }
 #bpm-skip-btn { position: absolute; right: 20px; font-size: 14px; padding: 8px 14px; }
 
 
-/* ★★★ 撮影画面固有のスタイル （以前のindex.htmlのスタイルを移植・調整） ★★★ */
+/* ★ 撮影画面固有のスタイル （以前のindex.htmlのスタイルを移植・調整） ★ */
 #screen-camera {
     background: #000;
-    padding: 0; /* 全体的なpaddingを削除 */
-    overflow: hidden; /* はみ出しを隠す */
+    padding: 0;
+    overflow: hidden;
 }
 
-/* カメラ映像と描画キャンバス */
 #camera-video, #camera-canvas {
     position: absolute;
     top: 0;
@@ -52,26 +105,24 @@ input { padding: 10px; border-radius: 8px; border: 1px solid #ddd; flex: 1; }
     height: 100%;
     object-fit: cover;
     z-index: 1;
-    filter: none; /* JSで動的に設定 */
-    transition: transform 0.3s ease-out, filter 0.2s ease-out; /* トランジション追加 */
+    filter: none;
+    transition: transform 0.3s ease-out, filter 0.2s ease-out;
 }
-#camera-video { transform: none; } /* 初期状態は反転なし */
+#camera-video { transform: none; }
 
 
-/* UIオーバーレイ */
 #camera-ui-overlay {
     position: absolute;
     inset: 0;
     z-index: 10;
-    pointer-events: none; /* デフォルトで透過し、子要素のみイベントを受け付ける */
-    color: #fff; /* 全体的な文字色 */
+    pointer-events: none;
+    color: #fff;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* 個々のUI要素 */
 #info-box, #album-button, #center-circle, #graph-container, #shutter-button, #switch-camera-button {
     position: absolute;
-    pointer-events: auto; /* 操作可能にする */
+    pointer-events: auto;
     user-select: none;
 }
 
@@ -195,14 +246,13 @@ input { padding: 10px; border-radius: 8px; border: 1px solid #ddd; flex: 1; }
     pointer-events: none;
 }
 
-/* BPM測定ボタンはカメラ画面では非表示 */
-#start-bpm-button {
+#start-bpm-button { /* 撮影画面では非表示のまま */
     display: none;
 }
 
 #switch-camera-button {
     bottom: 20px;
-    right: 20px; /* 右下に配置 */
+    right: 20px;
     background: rgba(0,0,0,0.3);
     border: 2px solid white;
     color: white;
