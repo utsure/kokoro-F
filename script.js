@@ -2,12 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ====== グローバル変数と定数 ======
   const screens = { initial: document.getElementById('screen-initial'), introduction: document.getElementById('screen-introduction'), fvalue: document.getElementById('screen-fvalue-input'), bpm: document.getElementById('screen-bpm'), camera: document.getElementById('screen-camera'), };
   const video = document.getElementById('video');
-  const previewCanvas = document.getElementById('canvas');
-  const previewCtx = previewCanvas.getContext('2d');
-  const captureCanvas = document.createElement('canvas');
+  const canvas = document.getElementById('canvas');
 
   let selectedFValue = 22.0, lastMeasuredBpm = 100;
-  let currentStream = null, rafId = null, currentFacing = 'environment';
+  let currentStream = null, currentFacing = 'environment';
   const MIN_F = 2.0, MAX_F = 22.0, BPM_MIN = 60, BPM_MAX = 100, DEFAULT_BPM = 80;
 
   // ====== 画面管理 ======
@@ -15,68 +13,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ====== カメラ制御 ======
   async function startCamera(facingMode) {
-    stopPreviewLoop();
     if (currentStream) currentStream.getTracks().forEach(track => track.stop());
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 } } });
       video.srcObject = stream;
       await video.play();
       currentStream = stream; currentFacing = facingMode;
-      startPreviewLoop();
     } catch (err) { alert("カメラの起動に失敗しました。"); }
   }
 
-  // ====== ★ 新描画エンジン ======
-  function startPreviewLoop() {
-    const buffer = document.createElement('canvas');
-    const bufferCtx = buffer.getContext('2d');
-
-    const render = () => {
-      if (!video.videoWidth) { rafId = requestAnimationFrame(render); return; }
-      if (previewCanvas.width !== video.videoWidth) {
-        previewCanvas.width = buffer.width = video.videoWidth;
-        previewCanvas.height = buffer.height = video.videoHeight;
-      }
-
-      // 1. F値の効果を適用した映像を、非表示のバッファに描画
-      bufferCtx.filter = getFilterString(selectedFValue);
-      bufferCtx.drawImage(video, 0, 0, buffer.width, buffer.height);
-
-      // 2. BPMから残像の強さを計算
-      const t = Math.max(0, Math.min(1, (lastMeasuredBpm - BPM_MIN) / (BPM_MAX - BPM_MIN)));
-      const fadeAmount = 0.3 + t * 0.6; // BPM:60で0.3、BPM:100で0.9
-      
-      // 3. 表示用キャンバスを一度暗くして残像を作る
-      previewCtx.fillStyle = `rgba(0, 0, 0, ${1 - fadeAmount})`;
-      previewCtx.globalCompositeOperation = 'darken';
-      previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
-      previewCtx.globalCompositeOperation = 'source-over';
-      
-      // 4. バッファの映像を上に重ねる
-      if (currentFacing === 'user') {
-        previewCtx.save();
-        previewCtx.translate(previewCanvas.width, 0);
-        previewCtx.scale(-1, 1);
-        previewCtx.drawImage(buffer, 0, 0);
-        previewCtx.restore();
-      } else {
-        previewCtx.drawImage(buffer, 0, 0);
-      }
-      
-      rafId = requestAnimationFrame(render);
-    };
-    rafId = requestAnimationFrame(render);
-  }
-  function stopPreviewLoop() { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
-  
   // ====== フィルター効果 ======
   function getFilterString(f) {
       const t = (f - MIN_F) / (MAX_F - MIN_F);
-      const brightness = 1.0 + (1 - t) * 0.8; // F2.0で1.8, F22.0で1.0
-      const blur = (1 - t) * 15; // F2.0で15px
+      const brightness = 1.0 + (1 - t) * 0.8;
+      const blur = (1 - t) * 15;
       return `brightness(${brightness.toFixed(2)}) blur(${blur.toFixed(2)}px)`;
   }
-
+  
   // ====== F値入力画面 ======
   const apertureControl = document.querySelector('.aperture-control');
   const fValueDisplay = document.getElementById('f-value-display');
@@ -103,12 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
       showScreen('camera');
       document.getElementById('fvalue-display-camera').textContent = `F: ${selectedFValue.toFixed(1)}`;
       document.getElementById('bpm-display-camera').textContent = `BPM: ${lastMeasuredBpm}`;
+      video.style.filter = getFilterString(selectedFValue); // ★ プレビューにF値フィルターを適用
       await startCamera('environment');
   }
 
   // ====== ★ アルバム機能 (修正版) ======
   const Album = {
-    KEY: 'cocoro_camera_album_v3', photos: [],
+    KEY: 'cocoro_camera_album_v4', photos: [],
     load() { try { const s = localStorage.getItem(this.KEY); this.photos = s ? JSON.parse(s) : []; } catch (e) { this.photos = []; } this.render(); },
     save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.photos)); } catch(e) { console.error("アルバムの保存に失敗", e); alert("アルバムの保存に失敗しました。");}},
     add(photoData) { this.photos.unshift(photoData); this.save(); this.render(); },
@@ -126,19 +80,43 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ====== ★ 新しい撮影機能 (WYSIWYG & アルバム保存) ======
+  async function captureWithMotionBlur(ctx, video, bpm) {
+    const numFrames = Math.max(1, Math.round(1 + (BPM_MAX - bpm) / (BPM_MAX - BPM_MIN) * 24));
+    ctx.globalAlpha = 1.0 / numFrames;
+    for (let i = 0; i < numFrames; i++) {
+        ctx.drawImage(video, 0, 0, ctx.canvas.width, ctx.canvas.height);
+        if (i < numFrames - 1) {
+            await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+    }
+  }
+
   async function takePhoto() {
     const shutterBtn = document.getElementById('camera-shutter-btn');
     if (shutterBtn.disabled || !video.videoWidth) return;
     shutterBtn.disabled = true;
 
     try {
-      captureCanvas.width = previewCanvas.width;
-      captureCanvas.height = previewCanvas.height;
-      const ctx = captureCanvas.getContext('2d');
-      // 現在のプレビュー（すべてのエフェクトが適用済み）をそのままコピー
-      ctx.drawImage(previewCanvas, 0, 0);
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      
+      // 撮影するキャンバスに、プレビューと同じF値フィルターを適用
+      ctx.filter = getFilterString(selectedFValue);
+      
+      // 反転処理
+      ctx.save();
+      if (currentFacing === 'user') {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
 
-      const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.9);
+      // BPMに応じたモーションブラーをかけながら描画
+      await captureWithMotionBlur(ctx, video, lastMeasuredBpm);
+      
+      ctx.restore(); // 反転を元に戻す
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
       Album.add({ src: dataUrl, f: selectedFValue, bpm: lastMeasuredBpm });
 
     } catch (err) { console.error('撮影エラー:', err);
