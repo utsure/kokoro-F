@@ -150,7 +150,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ---- F値UIの一括更新（表示は整数、サイズは滑らかに追従）----
 function updateApertureUI(f) {
   const clampedF = Math.max(MIN_F, Math.min(MAX_F, f));
-  // 円のサイズは連続値で更新
   apertureControl.style.width = apertureControl.style.height = `${fToSize(clampedF)}px`;
 
   // 表示は整数
@@ -158,7 +157,7 @@ function updateApertureUI(f) {
   fValueDisplay.textContent = String(intF);
   apertureInput.value = String(intF);
 
-  // プレビュー明るさにも反映
+  // プレビュー効果（必要なら）
   applyPreviewFilter(clampedF);
 }
   updateApertureUI(currentFValue);
@@ -168,7 +167,7 @@ let targetFValue  = selectedFValue;   // ピンチ操作で決まる値
 let smoothRafId   = null;
 
 function smoothLoop() {
-  const k = 0.18; // 追従の速さ
+  const k = 0.32; // 追従の速さ
   displayFValue += (targetFValue - displayFValue) * k;
 
   if (Math.abs(targetFValue - displayFValue) < 0.01) {
@@ -188,24 +187,53 @@ function setTargetFValue(nextF) {
 
   let lastPinchDistance = 0;
   const getDistance = (t1, t2) => Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-  document.body.addEventListener('touchstart', e => {
-    if (screens.fvalue.classList.contains('active') && e.touches.length === 2) {
-      e.preventDefault(); lastPinchDistance = getDistance(e.touches[0], e.touches[1]);
-    }
-  }, { passive: false });
-document.body.addEventListener('touchmove', e => {
-  if (screens.fvalue.classList.contains('active') && e.touches.length === 2 && lastPinchDistance > 0) {
+document.addEventListener('touchstart', e => {
+  if (!screens.fvalue.classList.contains('active')) return;
+  if (e.touches.length === 2) {
     e.preventDefault();
-    const dist = getDistance(e.touches[0], e.touches[1]);
-    const delta = lastPinchDistance - dist;
+    lastPinchDistance = Math.hypot(
+      e.touches[0].pageX - e.touches[1].pageX,
+      e.touches[0].pageY - e.touches[1].pageY
+    );
+    // F値画面中はドキュメントのジェスチャを抑制（どこでもピンチ可）
+    document.documentElement.style.touchAction = 'none';
+  }
+}, { passive: false });
 
-    // 直接 UI を更新せず、目標値だけ変更
-    const nextTarget = targetFValue + delta * 0.1; // 感度は 0.1 を調整可
+document.addEventListener('touchmove', e => {
+  if (!screens.fvalue.classList.contains('active')) return;
+  if (e.touches.length === 2 && lastPinchDistance > 0) {
+    e.preventDefault();
+
+    const dist = Math.hypot(
+      e.touches[0].pageX - e.touches[1].pageX,
+      e.touches[0].pageY - e.touches[1].pageY
+    );
+
+    // --- スケール比ベース（小さな動きでも大きく反応）---
+    const scale = dist / lastPinchDistance; // >1: ピンチアウト, <1: ピンチイン
+    // 1%のスケール変化が “感覚的に”伝わるよう対数スケールで増幅
+    const pinchPower = Math.log2(scale);      // 0.01の差でもきちんと値になる
+    const SENS = 10;                           // ← 感度。8〜14で調整可
+    const nextTarget = targetFValue - pinchPower * SENS;
+    // ピンチアウト(scale>1) → pinchPower>0 → Fを下げて円を大きく
+    // ピンチイン(scale<1)   → pinchPower<0 → Fを上げて円を小さく
+
     setTargetFValue(nextTarget);
-
     lastPinchDistance = dist;
   }
 }, { passive: false });
+  
+// すでに touchstart / touchmove を入れているブロックの「すぐ下」に追加
+document.addEventListener('touchend', e => {
+  if (!screens.fvalue.classList.contains('active')) return;
+  if (e.touches.length < 2) {
+    lastPinchDistance = 0;
+    // もし touchstart/move で document.documentElement.style.touchAction = 'none' を使っているなら解除
+    document.documentElement.style.touchAction = '';
+  }
+}, { passive: false });
+
 
   // ====== BPM計測画面 ======
   const bpmVideo = document.getElementById('bpm-video');
@@ -223,7 +251,7 @@ document.body.addEventListener('touchmove', e => {
     stopBpmCamera();
     lastMeasuredBpm = bpm || DEFAULT_BPM;
     showScreen('camera');
-    document.getElementById('fvalue-display-camera').textContent = `F: ${selectedFValue.toFixed(1)}`;
+    document.getElementById('fvalue-display-camera').textContent = `F: ${Math.round(selectedFValue)}`;
     document.getElementById('bpm-display-camera').textContent = `BPM: ${lastMeasuredBpm}`;
     applyPreviewFilter(selectedFValue);
     await startCamera('environment');
@@ -303,11 +331,12 @@ document.body.addEventListener('touchmove', e => {
   // ====== イベントリスナー設定 ======
   document.getElementById('initial-next-btn')?.addEventListener('click', () => showScreen('fvalue'));
   
-  document.getElementById('f-value-decide-btn')?.addEventListener('click', () => {
-    selectedFValue = parseFloat(document.getElementById('aperture').value);
-    showScreen('bpm');
-    startBpmCamera();
-  });
+document.getElementById('f-value-decide-btn')?.addEventListener('click', () => {
+  selectedFValue = Math.round(parseFloat(document.getElementById('aperture').value)); // ← 整数確定
+  showScreen('bpm');
+  startBpmCamera();
+});
+
   
   document.getElementById('bpm-start-btn')?.addEventListener('click', () => {
     bpmStatus.textContent = "計測中...";
