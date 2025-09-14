@@ -147,14 +147,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fToSize = f => MIN_SIZE + ((MAX_F - f) / (MAX_F - MIN_F)) * (MAX_SIZE - MIN_SIZE);
   let currentFValue = selectedFValue;
 
-  function updateApertureUI(f) {
-    const clampedF = Math.max(MIN_F, Math.min(MAX_F, f));
-    apertureControl.style.width = apertureControl.style.height = `${fToSize(clampedF)}px`;
-    const roundedF = Math.round(clampedF * 10) / 10;
-    fValueDisplay.textContent = roundedF.toFixed(1);
-    apertureInput.value = roundedF;
-  }
+// ---- F値UIの一括更新（表示は整数、サイズは滑らかに追従）----
+function updateApertureUI(f) {
+  const clampedF = Math.max(MIN_F, Math.min(MAX_F, f));
+  // 円のサイズは連続値で更新
+  apertureControl.style.width = apertureControl.style.height = `${fToSize(clampedF)}px`;
+
+  // 表示は整数
+  const intF = Math.round(clampedF);
+  fValueDisplay.textContent = String(intF);
+  apertureInput.value = String(intF);
+
+  // プレビュー明るさにも反映
+  applyPreviewFilter(clampedF);
+}
   updateApertureUI(currentFValue);
+  // ---- スムージング（目標値 → 表示値をなめらかに追従）----
+let displayFValue = selectedFValue;   // 実際に描画する値
+let targetFValue  = selectedFValue;   // ピンチ操作で決まる値
+let smoothRafId   = null;
+
+function smoothLoop() {
+  const k = 0.18; // 追従の速さ
+  displayFValue += (targetFValue - displayFValue) * k;
+
+  if (Math.abs(targetFValue - displayFValue) < 0.01) {
+    displayFValue = targetFValue;
+    smoothRafId = null; // ほぼ一致したら止める
+  } else {
+    smoothRafId = requestAnimationFrame(smoothLoop);
+  }
+  updateApertureUI(displayFValue);
+}
+
+function setTargetFValue(nextF) {
+  const clamped = Math.max(MIN_F, Math.min(MAX_F, nextF));
+  targetFValue = clamped;
+  if (!smoothRafId) smoothLoop();
+}
 
   let lastPinchDistance = 0;
   const getDistance = (t1, t2) => Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
@@ -163,16 +193,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault(); lastPinchDistance = getDistance(e.touches[0], e.touches[1]);
     }
   }, { passive: false });
-  document.body.addEventListener('touchmove', e => {
-    if (screens.fvalue.classList.contains('active') && e.touches.length === 2 && lastPinchDistance > 0) {
-      e.preventDefault();
-      const dist = getDistance(e.touches[0], e.touches[1]);
-      const delta = lastPinchDistance - dist;
-      currentFValue += delta * 0.1;
-      updateApertureUI(currentFValue);
-      lastPinchDistance = dist;
-    }
-  }, { passive: false });
+document.body.addEventListener('touchmove', e => {
+  if (screens.fvalue.classList.contains('active') && e.touches.length === 2 && lastPinchDistance > 0) {
+    e.preventDefault();
+    const dist = getDistance(e.touches[0], e.touches[1]);
+    const delta = lastPinchDistance - dist;
+
+    // 直接 UI を更新せず、目標値だけ変更
+    const nextTarget = targetFValue + delta * 0.1; // 感度は 0.1 を調整可
+    setTargetFValue(nextTarget);
+
+    lastPinchDistance = dist;
+  }
+}, { passive: false });
 
   // ====== BPM計測画面 ======
   const bpmVideo = document.getElementById('bpm-video');
