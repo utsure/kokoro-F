@@ -1,4 +1,37 @@
-document.addEventListener('DOMContentLoaded', () => {
+// (measureBpm関数内のループの最後の部分)
+      } else {
+        const estimated = estimateBpmFromSeries(vals, durationSec) ?? defaultBpm;
+        const clamped = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(estimated)));
+        lastMeasuredBpm = clamped;
+        bpmStatus.textContent = T.bpmResult(clamped);
+        setTimeout(async () => {
+          showScreen('camera');
+          const fHud = document.getElementById('fvalue-display-camera');
+          // ★ 修正：入力欄ではなく、保存したselectedFValueから値を表示
+          if (fHud) fHud.textContent = `F: ${selectedFValue.toFixed(1)}`;
+          updateCameraHudBpm();
+          // ★ 修正：撮影画面に遷移する際にフィルター効果を適用する
+          applyFnumberLight(selectedFValue);
+          await startCamera('environment');
+        }, 800);
+        stopBpmCamera();
+      }
+    };
+    loop();
+  }
+
+  document.getElementById('bpm-skip-btn')?.addEventListener('click', async () => {
+    lastMeasuredBpm = defaultBpm;
+    stopBpmCamera();
+    showScreen('camera');
+    const fHud = document.getElementById('fvalue-display-camera');
+    // ★ 修正：入力欄ではなく、保存したselectedFValueから値を表示
+    if (fHud) fHud.textContent = `F: ${selectedFValue.toFixed(1)}`;
+    updateCameraHudBpm();
+    // ★ 修正：撮影画面に遷移する際にフィルター効果を適用する
+    applyFnumberLight(selectedFValue);
+    await startCamera('environment');
+  });document.addEventListener('DOMContentLoaded', () => {
   // ====== 画面管理と要素参照 ======
   const screens = {
     initial: document.getElementById('screen-initial'),
