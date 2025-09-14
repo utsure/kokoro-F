@@ -1,76 +1,74 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <title>ココロカメラ</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0" />
-    <meta name="theme-color" content="#000000"/>
-    <link rel="manifest" href="manifest.json">
-    <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
-    <link rel="stylesheet" href="./style.css" />
+<meta charset="UTF-8" />
+<title>ココロカメラ</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0" />
+<meta name="theme-color" content="#000000"/>
+<link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
+
+<link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-    <div class="app-container">
-        <div id="screen-initial" class="screen active">
-            <h1 data-i18n="appTitle">ココロカメラ</h1>
-            <p data-i18n="splashTagline">あなたの心のシャッターを切る</p>
-            <button id="initial-next-btn" data-i18n="start">はじめる</button>
-        </div>
+  <div class="app-container">
+        <div id="screen-initial" class="screen active">
+      <h1 data-i18n="appTitle"></h1>
+      <p data-i18n="splashTagline"></p>
+      <button id="initial-next-btn" data-i18n="start"></button>
+    </div>
+        
+        <div id="screen-fvalue-input" class="screen">
+      <div class="f-value-title-container"><p class="f-value-title" data-i18n-html="fInputTitle"></p></div>
+      <div class="aperture-control-container">
+        <div class="aperture-control">
+          <div class="aperture-ring"></div>
+          <div class="aperture-value" id="f-value-display-setup">22.0</div>
+        </div>
+      </div>
+      <div class="description-text-container">
+        <div class="description-text">
+          <p data-i18n="fHint1"></p>
+          <p data-i18n="fHint2"></p>
+        </div>
+        <button id="f-value-decide-btn" data-i18n="decide"></button>
+      </div>
+    </div>
+        
+        <div id="screen-bpm" class="screen">
+      <h2 data-i18n="bpmTitle"></h2>
+      <p class="bpm-instruction" data-i18n-html="bpmPrep_html"></p>
+      <div class="bpm-video-wrapper"><video id="bpm-video" autoplay playsinline muted></video></div>
+      <p id="bpm-status" data-i18n="bpmReady"></p>
+      <div class="bpm-actions">
+        <button id="bpm-start-btn" data-i18n="bpmStart"></button>
+        <button id="bpm-skip-btn" class="secondary" data-i18n="skip"></button>
+      </div>
+    </div>
 
-        <div id="screen-fvalue-input" class="screen">
-            <div class="f-value-title-container"><p class="f-value-title" data-i18n-html="fInputTitle">今の心の状態に合わせて<br>円を広げたり縮めたりしてください</p></div>
-            <div class="aperture-control-container">
-                <div class="aperture-control">
-                    <div class="aperture-ring"></div>
-                    <div class="aperture-value" id="f-value-display-setup">22.0</div>
-                </div>
-            </div>
-            <div class="description-text-container">
-                <div class="description-text">
-                    <p data-i18n="fHint1">F値が小さいほど「開放的」に、</p>
-                    <p data-i18n="fHint2">F値が大きいほど「集中している」状態を表します。</p>
-                </div>
-                <button id="f-value-decide-btn" data-i18n="decide">決定</button>
-            </div>
-        </div>
+    <div id="screen-camera" class="screen">
+      <video id="camera-video" autoplay muted playsinline></video>
+      <canvas id="camera-canvas"></canvas>
+      <div id="info-box">F: <span id="camera-f-value">---</span><br>BPM: <span id="camera-bpm-value">---</span></div>
+      <div id="album-button">アルバム</div>
+      <div id="gallery"></div>
+      <div id="center-circle">22</div>
+      <div id="graph-container"><canvas id="graph"></canvas></div>
+      <div id="shutter-button" title="撮影"></div>
+      <div id="start-bpm-button">BPM測定</div>
+      <div id="switch-camera-button">カメラ切替</div>
+    </div>
+  </div>
 
-        <div id="screen-bpm" class="screen">
-            <h2 data-i18n="bpmTitle">ココロのシャッタースピード</h2>
-            <p class="bpm-instruction" data-i18n-html="bpmPrep_html">カメラに<strong>指先を軽く当てて</strong>ください<br>赤みの変化から心拍数を測定します</p>
-            <div class="bpm-video-wrapper">
-                <video id="bpm-video" autoplay playsinline muted></video>
-            </div>
-            <p id="bpm-status" data-i18n="bpmReady">準備ができたら計測開始を押してください</p>
-            <div class="bpm-actions">
-                <button id="bpm-start-btn" data-i18n="bpmStart">計測開始</button>
-                <button id="bpm-skip-btn" class="secondary" data-i18n="skip">スキップ</button>
-            </div>
-        </div>
+<script src="./script.js"></script>
+<script>
+    // Service Worker の登録 (既存のまま)
+    if ('serviceWorker' in navigator) { 
+      window.addEventListener('load', () => { 
+        navigator.serviceWorker.register('./sw.js').then(reg => console.log('Service Worker 登録成功:', reg)).catch(err => console.error('Service Worker 登録失敗:', err)); 
+      }); 
+    }
+</script>
 
-        <div id="screen-camera" class="screen">
-            <video id="camera-video" autoplay muted playsinline></video>
-            <canvas id="camera-canvas"></canvas>
-            
-            <div id="info-box">F: <span id="camera-f-value">---</span><br>BPM: <span id="camera-bpm-value">---</span></div>
-            <div id="album-button">アルバム</div>
-            <div id="gallery"></div>
-            <div id="center-circle">22</div>
-            <div id="graph-container"><canvas id="graph"></canvas></div>
-            <div id="shutter-button" title="撮影"></div>
-            <div id="start-bpm-button">BPM測定</div>
-            <div id="switch-camera-button">カメラ切替</div>
-        </div>
-    </div>
-
-    <script src="./script.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker 登録成功:', reg))
-                    .catch(err => console.error('Service Worker 登録失敗:', err));
-            });
-        }
-    </script>
 </body>
 </html>
