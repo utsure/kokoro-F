@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const transaction = db.transaction(['photos'], 'readwrite');
       const store = transaction.objectStore('photos');
       const request = store.add(photoData);
-      request.onsuccess = e => resolve(e.target.result); // Returns new ID
+      request.onsuccess = e => resolve(e.target.result);
       request.onerror = e => reject(e.target.error);
     });
   }
@@ -60,23 +60,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ★ 変更点: photo.dataURL を直接利用するように修正
   function addThumbnailToGallery(photo) {
     const thumb = document.createElement('div');
     thumb.className = 'cc-thumb';
     const img = document.createElement('img');
-    img.src = URL.createObjectURL(photo.blob);
-    img.onload = () => URL.revokeObjectURL(img.src); // メモリ解放
+    img.src = photo.dataURL; // Data URLを直接設定
     const meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = `F${photo.fValue.toFixed(1)} | BPM: ${photo.bpm}`;
     thumb.append(img, meta);
-    galleryGrid.prepend(thumb); // 新しいものを先頭に追加
+    galleryGrid.prepend(thumb);
   }
 
   async function loadGallery() {
     galleryGrid.innerHTML = '';
     const photos = await getAllPhotos();
-    photos.sort((a, b) => b.timestamp - a.timestamp); // 新しい順にソート
+    photos.sort((a, b) => b.timestamp - a.timestamp);
     photos.forEach(addThumbnailToGallery);
   }
 
@@ -236,23 +236,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         await captureWithMotionBlur(ctx, video, lastMeasuredBpm);
         ctx.filter = 'none';
 
-        captureCanvas.toBlob(async (blob) => {
-            if (!blob) {
-                alert('撮影データの生成に失敗しました。');
-                return;
-            }
-            const photoData = {
-                blob: blob, fValue: selectedFValue, bpm: lastMeasuredBpm, timestamp: Date.now()
-            };
-            try {
-                const newId = await addPhotoToDB(photoData);
-                photoData.id = newId;
-                addThumbnailToGallery(photoData);
-            } catch (err) {
-                console.error('写真の保存に失敗:', err);
-                alert(`写真の保存に失敗しました。\nエラー: ${err.message}`);
-            }
-        }, 'image/jpeg', 0.9);
+        // ★ 変更点: toBlobの代わりにtoDataURLを使用して文字列として画像データを取得
+        const dataURL = captureCanvas.toDataURL('image/jpeg', 0.9);
+
+        if (!dataURL) {
+            alert('撮影データの生成に失敗しました。');
+            return;
+        }
+
+        // ★ 変更点: blobプロパティの代わりにdataURLプロパティに格納
+        const photoData = {
+            dataURL: dataURL,
+            fValue: selectedFValue,
+            bpm: lastMeasuredBpm,
+            timestamp: Date.now()
+        };
+
+        try {
+            await addPhotoToDB(photoData);
+            addThumbnailToGallery(photoData);
+        } catch (err) {
+            console.error('写真の保存に失敗:', err);
+            alert(`写真の保存に失敗しました。\nエラー: ${err.message}`);
+        }
     } catch (err) {
         console.error('撮影エラー:', err);
         alert(`撮影中にエラーが発生しました。\nエラー: ${err.message}`);
