@@ -237,3 +237,8 @@ button:focus-visible { outline: 3px solid #5aa9ff; outline-offset: 2px; }
   height: 100%;
   z-index: 1;
 }
+
+.aperture-control {
+  transition: width 100ms ease-out, height 100ms ease-out;
+  will-change: width, height;
+}
