@@ -1,66 +1,30 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-  <title>ココロカメラ</title>
-  <link rel="stylesheet" href="./style.css" />
-</head>
+<meta charset="UTF-8" />
+<title>ココロカメラ</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0" />
+<meta name="theme-color" content="#000000"/>
+<link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
+
+<link rel="stylesheet" href="./style.css"> </head>
 <body>
-  <div class="app-container">
-        <div id="screen-initial" class="screen active">
-      <h1 data-i18n="appTitle"></h1><p data-i18n="splashTagline"></p>
-      <button id="initial-next-btn" data-i18n="start"></button>
-    </div>
-        <div id="screen-introduction" class="screen">
-      <h2 data-i18n="howtoTitle"></h2><p data-i18n-html="howtoText"></p>
-      <div class="meta-inputs">
-        <input id="participant-name" type="text" placeholder="ニックネーム（任意）" />
-        <input id="room-code" type="text" placeholder="ルームコード（任意）" />
-      </div>
-      <button id="intro-next-btn" data-i18n="next"></button>
-    </div>
-        <div id="screen-fvalue-input" class="screen">
-      <div class="f-value-title-container"><p class="f-value-title" data-i18n-html="fInputTitle"></p></div>
-      <div class="aperture-control-container">
-        <div class="aperture-control">
-          <div class="aperture-ring"></div><div class="aperture-value" id="f-value-display">22.0</div>
-        </div>
-      </div>
-      <div class="description-text-container">
-        <div class="description-text"><p data-i18n="fHint1"></p><p data-i18n="fHint2"></p></div>
-        <input type="hidden" id="aperture" value="22.0" />
-        <button id="f-value-decide-btn" data-i18n="decide"></button>
-      </div>
-    </div>
-        <div id="screen-bpm" class="screen">
-      <h2 data-i18n="bpmTitle"></h2><p class="bpm-instruction" data-i18n-html="bpmPrep_html"></p>
-      <div class="bpm-video-wrapper"><video id="bpm-video" autoplay playsinline muted></video></div>
-      <p id="bpm-status" data-i18n="bpmReady"></p>
-      <div class="bpm-actions">
-        <button id="bpm-start-btn" data-i18n="bpmStart"></button><button id="bpm-skip-btn" class="secondary" data-i18n="skip"></button>
-      </div>
-    </div>
-        <div id="screen-camera" class="screen">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="canvas" style="display: none;"></canvas>
-      <div class="camera-ui">
-        <div class="camera-ui-top"><span id="fvalue-display-camera"></span><span id="bpm-display-camera"></span></div>
-        <div class="camera-ui-bottom">
-          <button id="camera-switch-btn" class="camera-btn" data-i18n="switchCam"></button>
-          <button id="camera-shutter-btn" class="camera-btn" data-i18n="shoot"></button>
-          <button id="camera-info-btn" class="camera-btn" data-i18n="info"></button>
-        </div>
-      </div>
-    </div>
-    <div id="gallery-modal" class="cc-modal hidden">
-        <div class="cc-modal-backdrop"></div>
-        <div class="cc-modal-panel">
-            <div class="cc-modal-header"><h3>ギャラリー</h3><button id="gallery-close-btn">×</button></div>
-            <div id="gallery-grid" class="cc-grid"></div>
-        </div>
-    </div>
-  </div>
-  <script src="./script.js" defer></script>
+<video id="video" autoplay muted playsinline></video>
+<canvas id="canvas"></canvas> <div id="ui-overlay"> <div id="info-box">F: <span id="f-value">22</span><br>BPM: <span id="bpm-value">---</span></div>
+    <div id="album-button">アルバム</div>
+    <div id="gallery"></div>
+    <div id="center-circle">22</div>
+    <div id="graph-container"><canvas id="graph"></canvas></div>
+    <div id="shutter-button" title="撮影"></div>
+    <div id="start-bpm-button">BPM測定</div>
+    <div id="switch-camera-button">カメラ切替</div>
+</div>
+
+<script src="./script.js"></script> <script>
+    // Service Worker の登録 (既存のまま)
+    if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').then(reg => console.log('Service Worker 登録成功:', reg)).catch(err => console.error('Service Worker 登録失敗:', err)); }); }
+</script>
+
 </body>
 </html>
