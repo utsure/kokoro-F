@@ -2,34 +2,155 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
   <title>ココロカメラ</title>
-    <link rel="stylesheet" href="./style.css" />
+
+    <style>
+    /* ベース */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: "Hiragino Kaku Gothic ProN", "ヒラギノ角ゴ ProN W3",
+                   "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+      background: #f0f0f0;
+    }
+    * { box-sizing: border-box; }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+
+    /* 端末サイズに合わせて自然にスケーリング */
+    .app-container {
+      width: 100%;
+      height: 100%;
+      max-width: 420px;
+      aspect-ratio: 375 / 812;
+      background: #fff;
+      position: relative;
+      overflow: hidden;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .screen {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      text-align: center; padding: 20px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .4s ease;
+    }
+    .screen.active { opacity: 1; pointer-events: auto; }
+
+    h1 { font-size: 2.3rem; font-weight: 800; color: #333; margin: 0 0 10px; }
+    h2 { font-size: 1.7rem; font-weight: 700; color: #444; margin: 0 0 10px; }
+    p  { font-size: 1rem; color: #666; line-height: 1.6; margin: 0 0 8px; }
+
+    button {
+      padding: 14px 28px; font-size: 16px; font-weight: 700;
+      border-radius: 999px; cursor: pointer;
+      background: #111; color: #fff; border: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 15px rgba(0,0,0,0.28); }
+    button:active { transform: translateY(0); }
+    button.secondary { background: #ececec; color: #222; }
+    button:focus-visible { outline: 3px solid #5aa9ff; outline-offset: 2px; }
+
+    .camera-btn, #camera-switch-btn, #camera-shutter-btn, #camera-info-btn {
+      white-space: nowrap; flex: 0 0 auto; display: inline-flex;
+      align-items: center; justify-content: center;
+    }
+
+    #screen-fvalue-input { display: flex; flex-direction: column; justify-content: space-around;}
+    .f-value-title-container { width: 100%; padding-top: 8px; }
+    .aperture-control-container { display: flex; justify-content: center; align-items: center; flex: 1; width: 100%; }
+    .description-text-container { display: flex; flex-direction: column; align-items: center; padding-bottom: 12px; gap: 8px; }
+    .f-value-title { font-size: 1.1rem; font-weight: 600; color: #555; }
+    .aperture-control { position: relative; width: 200px; height: 200px; transition: all .18s ease; }
+    .aperture-ring {
+      width: 100%; height: 100%; border-radius: 50%; border: 4px solid #2A9858;
+      background: #2A9858;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.25), 0 5px 15px rgba(0,0,0,0.25);
+    }
+    .aperture-value {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      font-size: 2.3rem; font-weight: 800; color: #fff;
+    }
+
+    #screen-bpm { background: #fff; color: #222; }
+    #screen-bpm h2 { color: #000; }
+    .bpm-instruction { color: #444; }
+    .bpm-video-wrapper {
+      width: 80%; max-width: 320px; aspect-ratio: 4/3; border: 4px solid #D30000;
+      border-radius: 12px; margin: 12px 0; background: #fff; overflow: hidden;
+    }
+    #bpm-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #bpm-status { color: #444; margin: 6px 0 12px; }
+    .bpm-actions {
+      position: relative; width: 100%; margin-top: 20px;
+      display: flex; justify-content: center; align-items: center;
+    }
+    #bpm-start-btn { margin: 0 auto; z-index: 1; }
+    #bpm-skip-btn {
+      position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+      font-size: 14px; padding: 8px 14px;
+    }
+
+    #screen-camera { background: #000; padding: 0; }
+    #preview-canvas, #video { /* プレビュー用Canvasにもスタイルを適用 */
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; z-index: 1;
+    }
+    #capture-canvas { display: none; }
+
+    .camera-ui {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: space-between; align-items: center;
+      padding: 16px; z-index: 2;
+    }
+    .camera-ui-top {
+      width: 100%; display: flex; justify-content: space-between; padding: 10px 12px;
+      color: #fff; font-weight: 700; text-shadow: 1px 1px 2px rgba(0,0,0,.5);
+      background: linear-gradient(to bottom, rgba(0,0,0,.45), transparent);
+      border-radius: 10px;
+    }
+    .camera-ui-bottom { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0 16px 10px; }
+    #camera-shutter-btn {
+      padding: 18px 36px; border: 3px solid #fff; background: rgba(255,255,255,.3); color: #fff;
+      font-size: 1.1rem; font-weight: 800; backdrop-filter: blur(5px);
+    }
+  </style>
 </head>
 <body>
   <div class="app-container">
         <div id="screen-initial" class="screen active">
-      <h1 data-i18n="appTitle"></h1>
-      <p data-i18n="splashTagline"></p>
+      <h1 data-i18n="appTitle"></h1><p data-i18n="splashTagline"></p>
       <button id="initial-next-btn" data-i18n="start"></button>
     </div>
-
         <div id="screen-introduction" class="screen">
-      <h2 data-i18n="howtoTitle"></h2>
-      <p data-i18n-html="howtoText"></p>
-      <div class="meta-inputs">
-        <input id="participant-name" type="text" placeholder="ニックネーム（任意）" />
-        <input id="room-code" type="text" placeholder="ルームコード（任意）" />
+      <h2 data-i18n="howtoTitle"></h2><p data-i18n-html="howtoText"></p>
+      <div class="meta-inputs" style="display:flex; gap:8px; margin:20px 0; width: 90%; max-width: 400px;">
+        <input id="participant-name" type="text" placeholder="ニックネーム（任意）" style="padding:10px; border-radius:8px; border:1px solid #ddd; flex:1;" />
+        <input id="room-code" type="text" placeholder="ルームコード（任意）" style="padding:10px; border-radius:8px; border:1px solid #ddd; flex:1;" />
       </div>
       <button id="intro-next-btn" data-i18n="next"></button>
     </div>
-
         <div id="screen-fvalue-input" class="screen">
       <div class="f-value-title-container"><p class="f-value-title" data-i18n-html="fInputTitle"></p></div>
       <div class="aperture-control-container">
         <div class="aperture-control">
-          <div class="aperture-ring"></div>
-          <div class="aperture-value" id="f-value-display">22.0</div>
+          <div class="aperture-ring"></div><div class="aperture-value" id="f-value-display">22.0</div>
         </div>
       </div>
       <div class="description-text-container">
@@ -40,10 +161,8 @@
         <button id="f-value-decide-btn" data-i18n="decide"></button>
       </div>
     </div>
-
         <div id="screen-bpm" class="screen">
-      <h2 data-i18n="bpmTitle"></h2>
-      <p class="bpm-instruction" data-i18n-html="bpmPrep_html"></p>
+      <h2 data-i18n="bpmTitle"></h2><p class="bpm-instruction" data-i18n-html="bpmPrep_html"></p>
       <div class="bpm-video-wrapper"><video id="bpm-video" autoplay playsinline muted></video></div>
       <canvas id="bpm-canvas" style="display:none;"></canvas>
       <p id="bpm-status" data-i18n="bpmReady"></p>
@@ -52,9 +171,8 @@
         <button id="bpm-skip-btn" class="secondary" data-i18n="skip"></button>
       </div>
     </div>
-
         <div id="screen-camera" class="screen">
-            <video id="video" autoplay playsinline muted style="display:none;"></video>
+      <video id="video" autoplay playsinline muted style="display:none;"></video>
       <canvas id="capture-canvas" style="display:none;"></canvas>
       <div class="camera-ui">
         <div class="camera-ui-top">
@@ -64,12 +182,234 @@
         <div class="camera-ui-bottom">
           <button id="camera-switch-btn" class="camera-btn" data-i18n="switchCam"></button>
           <button id="camera-shutter-btn" class="camera-btn" data-i18n="shoot"></button>
-          <button id="camera-info-btn" class="camera-btn" data-i18n="info">INFO</button>
+          <button id="camera-info-btn" class="camera-btn" data-i18n="info"></button>
         </div>
       </div>
     </div>
   </div>
 
-    <script src="./script.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // ====== グローバル変数と定数 ======
+      const screens = {
+        initial: document.getElementById('screen-initial'),
+        introduction: document.getElementById('screen-introduction'),
+        fvalue: document.getElementById('screen-fvalue-input'),
+        bpm: document.getElementById('screen-bpm'),
+        camera: document.getElementById('screen-camera'),
+      };
+      const T = {
+        appTitle: "ココロカメラ", splashTagline: "あなたの心のシャッターを切る", start: "はじめる", next: "次へ",
+        howtoTitle: "名前とルームコードの入力", howtoText: "あなたの名前（ニックネーム）とルームコードを<br>入力してください。（任意）",
+        fInputTitle: "今の心の状態に合わせて<br>円を広げたり縮めたりしてください", fHint1: "F値が小さい=開放的", fHint2: "F値が大きい＝集中している",
+        decide: "決定", bpmTitle: "ココロのシャッタースピード", bpmPrep_html: 'カメラに<strong>指先を軽く当てて</strong>ください<br>赤みの変化から心拍数を測定します',
+        bpmReady: "準備ができたら計測開始を押してください", bpmStart: "計測開始", skip: "スキップ", switchCam: "切り替え", shoot: "撮影", info: "アルバム",
+        bpmMeasuring: (remain) => `計測中… 残り ${remain} 秒`, bpmResult: (bpm) => `推定BPM: ${bpm}`, cameraError: "カメラを起動できませんでした。"
+      };
+      
+      let currentStream = null, rafId = null, currentFacing = 'environment';
+      let selectedFValue = 22.0, lastMeasuredBpm = 80;
+      const MIN_F = 2.0, MAX_F = 22.0, DEFAULT_BPM = 80;
+      const BPM_MIN = 60, BPM_MAX = 100;
+
+      const video = document.getElementById('video');
+      const captureCanvas = document.getElementById('capture-canvas');
+      const previewCanvas = document.createElement('canvas');
+      const previewCtx = previewCanvas.getContext('2d');
+      if (screens.camera) screens.camera.insertBefore(previewCanvas, video);
+
+      // ====== 画面管理 ======
+      function showScreen(key) {
+        Object.values(screens).forEach(s => s.classList.remove('active'));
+        screens[key].classList.add('active');
+      }
+
+      // ====== カメラ制御 ======
+      async function startCamera(facingMode) {
+        stopPreviewLoop();
+        if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+        try {
+          const constraints = { video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          video.srcObject = stream;
+          await video.play();
+          currentStream = stream;
+          currentFacing = facingMode;
+          startPreviewLoop();
+        } catch (err) { alert(T.cameraError); }
+      }
+
+      function startPreviewLoop() {
+        const render = () => {
+          if (video.readyState >= 2 && video.videoWidth > 0) {
+            if (previewCanvas.width !== video.videoWidth) {
+              previewCanvas.width = video.videoWidth;
+              previewCanvas.height = video.videoHeight;
+            }
+            previewCtx.save();
+            if (currentFacing === 'user') {
+              previewCtx.translate(previewCanvas.width, 0);
+              previewCtx.scale(-1, 1);
+            }
+            previewCtx.drawImage(video, 0, 0, previewCanvas.width, previewCanvas.height);
+            previewCtx.restore();
+          }
+          rafId = requestAnimationFrame(render);
+        };
+        rafId = requestAnimationFrame(render);
+      }
+      function stopPreviewLoop() { if (rafId) cancelAnimationFrame(rafId); rafId = null; }
+
+      // ====== フィルター効果 (プレビューと撮影結果を同期) ======
+      function getFilterString(f) {
+        const t = (f - MIN_F) / (MAX_F - MIN_F);
+        const brightness = 1.8 - (t * 1.5);
+        const blur = (1 - t) * 10;
+        return `brightness(${brightness.toFixed(2)}) blur(${blur.toFixed(2)}px)`;
+      }
+
+      function applyPreviewFilter(f) {
+        previewCanvas.style.filter = getFilterString(f);
+      }
+
+      // ====== F値入力画面 ======
+      const apertureControl = document.querySelector('.aperture-control');
+      const fValueDisplay = document.getElementById('f-value-display');
+      const apertureInput = document.getElementById('aperture-value-input');
+      const MIN_SIZE = 100, MAX_SIZE = 250;
+      const fToSize = f => MIN_SIZE + ((MAX_F - f) / (MAX_F - MIN_F)) * (MAX_SIZE - MIN_SIZE);
+      let currentFValue = selectedFValue;
+
+      function updateApertureUI(f) {
+        const clampedF = Math.max(MIN_F, Math.min(MAX_F, f));
+        apertureControl.style.width = apertureControl.style.height = `${fToSize(clampedF)}px`;
+        const roundedF = Math.round(clampedF * 10) / 10; // 小数点第一位まで
+        fValueDisplay.textContent = roundedF.toFixed(1);
+        apertureInput.value = roundedF;
+      }
+      updateApertureUI(currentFValue);
+
+      let lastPinchDistance = 0;
+      const getDistance = (t1, t2) => Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
+      document.body.addEventListener('touchstart', e => {
+        if (screens.fvalue.classList.contains('active') && e.touches.length === 2) {
+          e.preventDefault(); lastPinchDistance = getDistance(e.touches[0], e.touches[1]);
+        }
+      }, { passive: false });
+      document.body.addEventListener('touchmove', e => {
+        if (screens.fvalue.classList.contains('active') && e.touches.length === 2 && lastPinchDistance > 0) {
+          e.preventDefault();
+          const dist = getDistance(e.touches[0], e.touches[1]);
+          const delta = lastPinchDistance - dist;
+          currentFValue += delta * 0.1;
+          updateApertureUI(currentFValue);
+          lastPinchDistance = dist;
+        }
+      }, { passive: false });
+
+      // ====== BPM計測画面 ======
+      const bpmVideo = document.getElementById('bpm-video');
+      async function startBpmCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+          bpmVideo.srcObject = stream;
+        } catch (e) { alert("BPM用カメラを開始できません"); }
+      }
+      function stopBpmCamera() {
+        if (bpmVideo.srcObject) { bpmVideo.srcObject.getTracks().forEach(t => t.stop()); bpmVideo.srcObject = null; }
+      }
+      async function goToCameraScreen(bpm) {
+        stopBpmCamera();
+        lastMeasuredBpm = bpm;
+        showScreen('camera');
+        document.getElementById('fvalue-display-camera').textContent = `F: ${selectedFValue.toFixed(1)}`;
+        document.getElementById('bpm-display-camera').textContent = `BPM: ${bpm}`;
+        applyPreviewFilter(selectedFValue);
+        await startCamera('environment');
+      }
+
+      // ====== 撮影機能 (安定版) ======
+      async function takePhoto() {
+        if (!video.videoWidth) { return alert("カメラの準備ができていません。"); }
+        const shutterBtn = document.getElementById('camera-shutter-btn');
+        shutterBtn.disabled = true;
+
+        try {
+          captureCanvas.width = video.videoWidth;
+          captureCanvas.height = video.videoHeight;
+          const ctx = captureCanvas.getContext('2d');
+          ctx.clearRect(0, 0, captureCanvas.width, captureCanvas.height);
+          ctx.filter = getFilterString(selectedFValue);
+
+          const bpm = lastMeasuredBpm || DEFAULT_BPM;
+          const numFrames = Math.max(1, Math.round(1 + (BPM_MAX - bpm) / (BPM_MAX - BPM_MIN) * 14));
+          const frameDelay = 1000 / 30; // 30fps相当
+
+          for (let i = 0; i < numFrames; i++) {
+              ctx.save();
+              if (i > 0) { // 2フレーム目以降は半透明にする
+                  ctx.globalAlpha = 0.5 / (numFrames - 1);
+              }
+              if (currentFacing === 'user') {
+                  ctx.translate(captureCanvas.width, 0);
+                  ctx.scale(-1, 1);
+              }
+              ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+              ctx.restore();
+              if (i < numFrames - 1) {
+                  await new Promise(resolve => setTimeout(resolve, frameDelay));
+              }
+          }
+          ctx.filter = 'none';
+
+          captureCanvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cocoro_photo_${Date.now()}.jpg`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }, 'image/jpeg', 0.9);
+
+        } catch (err) {
+          console.error("撮影に失敗:", err);
+          alert("写真の撮影中にエラーが発生しました。");
+        } finally {
+          shutterBtn.disabled = false;
+        }
+      }
+
+      // ====== イベントリスナー設定 ======
+      document.getElementById('initial-next-btn').addEventListener('click', () => showScreen('introduction'));
+      document.getElementById('intro-next-btn').addEventListener('click', () => showScreen('fvalue'));
+      document.getElementById('f-value-decide-btn').addEventListener('click', () => {
+        selectedFValue = parseFloat(apertureInput.value);
+        showScreen('bpm');
+        startBpmCamera();
+      });
+      document.getElementById('bpm-start-btn').addEventListener('click', () => {
+        // デモ用にBPM計測をシミュレート
+        const bpm = Math.round(Math.random() * (BPM_MAX - BPM_MIN) + BPM_MIN);
+        setTimeout(() => goToCameraScreen(bpm), 3000);
+      });
+      document.getElementById('bpm-skip-btn').addEventListener('click', () => goToCameraScreen(DEFAULT_BPM));
+      document.getElementById('camera-switch-btn').addEventListener('click', () => {
+        const nextFacing = (currentFacing === 'user') ? 'environment' : 'user';
+        startCamera(nextFacing);
+      });
+      document.getElementById('camera-shutter-btn').addEventListener('click', takePhoto);
+
+      // ====== 初期化 ======
+      function applyAllTexts() {
+        Object.keys(T).forEach(key => {
+            document.querySelectorAll(`[data-i18n="${key}"], [data-i18n-html="${key}"]`).forEach(el => {
+                if (el.dataset.i18n) el.textContent = T[key]; else el.innerHTML = T[key];
+            });
+        });
+      }
+      applyAllTexts();
+      showScreen('initial');
+    });
+  </script>
 </body>
 </html>
